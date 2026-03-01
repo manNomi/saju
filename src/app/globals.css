@@ -1,0 +1,5 @@
+@import "@seed-design/css/all.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
