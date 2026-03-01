@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# saju - 490원 연애운 웹앱
 
-## Getting Started
+모바일 웹뷰 기준으로 동작하는 Next.js 앱입니다.
 
-First, run the development server:
+## 핵심 플로우
+
+1. 사용자가 사주 입력
+2. 결제 진행 (토스 또는 mock)
+3. 결제 확인 후 서버에서 분석 실행
+4. 결과를 `요청 ID + 조회 키(token)`로 재조회
+
+## 보안 모델
+
+- 클라이언트는 Firestore를 직접 읽지 않습니다.
+- 모든 접근은 Next API를 경유합니다.
+- 결과 조회는 `jobId + accessToken`이 모두 필요합니다.
+- `accessToken`은 서버에 해시로 저장됩니다.
+
+## 환경 변수
+
+`.env.local` 생성 후 아래 값 설정:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=saju-65bf8.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=saju-65bf8
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=saju-65bf8.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=158256646033
+NEXT_PUBLIC_FIREBASE_APP_ID=
+
+# 권장: Firebase Admin (운영)
+FIREBASE_ADMIN_PROJECT_ID=
+FIREBASE_ADMIN_CLIENT_EMAIL=
+FIREBASE_ADMIN_PRIVATE_KEY=
+
+# Admin 미설정 시 fallback (개발에서만 권장)
+FIREBASE_SERVER_FALLBACK_PUBLIC=true
+
+# Toss 결제
+NEXT_PUBLIC_TOSS_CLIENT_KEY=
+TOSS_SECRET_KEY=
+ALLOW_MOCK_PAYMENTS=true
+
+# Abuse 방지
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
+
+# 배치 처리 endpoint 보호
+JOB_PROCESSOR_SECRET=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Firestore Rules
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+운영에서는 `firestore.rules`를 적용하세요.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+firebase deploy --only firestore:rules
+```
 
-## Learn More
+현재 rules는 클라이언트 직접 접근을 차단합니다. 서버 API + Admin SDK 사용을 전제로 합니다.
 
-To learn more about Next.js, take a look at the following resources:
+주의: `NODE_ENV=production`에서는 `FIREBASE_SERVER_FALLBACK_PUBLIC=true`를 명시하지 않으면
+public SDK fallback이 비활성화됩니다. 운영에서는 Admin 자격증명 사용을 권장합니다.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 실행
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm install
+npm run dev
+```
 
-## Deploy on Vercel
+## 분석 배치 처리 (자동화/크론)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+분석 대기 작업을 주기적으로 처리하려면:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Endpoint: `POST /api/jobs/process`
+- Header: `x-job-processor-secret: <JOB_PROCESSOR_SECRET>`
+
+예시(cron 1분):
+
+```bash
+curl -X POST \
+  -H "x-job-processor-secret: $JOB_PROCESSOR_SECRET" \
+  https://<your-domain>/api/jobs/process
+```
+
+## 점검
+
+```bash
+npm run lint
+npm run build
+```
