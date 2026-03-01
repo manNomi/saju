@@ -10,7 +10,9 @@ if (apiKey) {
 }
 
 console.log(`[firebase-smoke] projectId=${projectId}`);
-console.log(`[firebase-smoke] endpoint=${endpoint.toString()}`);
+console.log(
+  `[firebase-smoke] endpoint=${endpoint.origin}${endpoint.pathname}${apiKey ? "?key=[REDACTED]" : ""}`,
+);
 
 try {
   const response = await fetch(endpoint, {
