@@ -13,7 +13,6 @@ import {
   type LoveJobInput,
   type LoveJobResult,
 } from "@/lib/love-automation";
-import { usePricingExperiment } from "@/lib/pricing-experiment";
 
 type Step = "landing" | "input" | "pending" | "result";
 
@@ -31,7 +30,6 @@ const DEFAULT_INPUT: SajuInput = {
 
 const cardClassName =
   "rounded-3xl border border-seed-stroke-subtle bg-seed-bg-floating p-5 shadow-card";
-const UNLOCKED_RESULTS_KEY = "saju_love_unlocked_results_v1";
 
 function CarrotBuddy({ label }: { label: string }) {
   return (
@@ -88,33 +86,7 @@ function syncRidToUrl(rid: string | null) {
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
-function readUnlockedResults(): Record<string, true> {
-  if (typeof window === "undefined") return {};
-
-  try {
-    const raw = window.localStorage.getItem(UNLOCKED_RESULTS_KEY);
-    if (!raw) return {};
-    return (JSON.parse(raw) as Record<string, true>) ?? {};
-  } catch {
-    return {};
-  }
-}
-
-function isJobUnlocked(jobId: string) {
-  const unlocked = readUnlockedResults();
-  return Boolean(unlocked[jobId]);
-}
-
-function markJobUnlocked(jobId: string) {
-  if (typeof window === "undefined") return;
-
-  const unlocked = readUnlockedResults();
-  unlocked[jobId] = true;
-  window.localStorage.setItem(UNLOCKED_RESULTS_KEY, JSON.stringify(unlocked));
-}
-
 export default function LoveFortuneApp() {
-  const { variant: pricingVariant, source: pricingSource } = usePricingExperiment();
   const [step, setStep] = useState<Step>("landing");
   const [form, setForm] = useState<SajuInput>(DEFAULT_INPUT);
   const [error, setError] = useState("");
@@ -123,11 +95,8 @@ export default function LoveFortuneApp() {
   const [lookupId, setLookupId] = useState("");
   const [lookupError, setLookupError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [isDetailUnlocked, setIsDetailUnlocked] = useState(false);
 
   const customerName = useMemo(() => form.name || "고객님", [form.name]);
-  const isPaidOnlyVariant = pricingVariant === "paid_only";
-  const showFullResult = isPaidOnlyVariant || isDetailUnlocked;
 
   const applyJobState = useCallback(
     (job: LoveJob) => {
@@ -135,7 +104,6 @@ export default function LoveFortuneApp() {
       setLookupId(job.id);
       setForm(job.input);
       setActiveLoveJobId(job.id);
-      setIsDetailUnlocked(isPaidOnlyVariant || isJobUnlocked(job.id));
 
       if (job.status === "completed" && job.result) {
         setResult(job.result);
@@ -155,7 +123,7 @@ export default function LoveFortuneApp() {
       setStep("input");
       setError("분석 처리 중 오류가 발생했어요. 다시 요청해 주세요.");
     },
-    [isPaidOnlyVariant],
+    [],
   );
 
   useEffect(() => {
@@ -244,7 +212,6 @@ export default function LoveFortuneApp() {
     const job = await createLoveJob(form);
     setJobId(job.id);
     setLookupId(job.id);
-    setIsDetailUnlocked(isPaidOnlyVariant);
     setResult(null);
     setStep("pending");
   };
@@ -276,12 +243,6 @@ export default function LoveFortuneApp() {
     window.setTimeout(() => setCopied(false), 1200);
   };
 
-  const unlockDetail = () => {
-    if (!jobId) return;
-    markJobUnlocked(jobId);
-    setIsDetailUnlocked(true);
-  };
-
   return (
     <div className="min-h-dvh bg-[radial-gradient(circle_at_6%_4%,var(--seed-color-bg-brand-weak),transparent_34%),radial-gradient(circle_at_96%_2%,var(--seed-color-bg-brand-weak),transparent_28%),var(--seed-color-bg-layer-fill)]">
       {step === "landing" && (
@@ -295,16 +256,8 @@ export default function LoveFortuneApp() {
               490원 연애운 보기
             </Text>
             <Text as="p" className="mt-2.5 block text-[15px] leading-[1.5] text-seed-fg-muted">
-              {isPaidOnlyVariant
-                ? "결제 후 전체 리포트를 제공하는 실험군입니다."
-                : "무료 요약을 먼저 제공하고, 상세 리포트는 결제 후 제공하는 실험군입니다."}
+              논문·규칙 기반 분석 결과를 490원에 제공해요. 결제 금액은 서버 운영비로만 사용합니다.
             </Text>
-            <div className="mt-4 inline-flex rounded-full border border-seed-stroke-brand bg-seed-bg-brand-weak px-3 py-2 text-[13px] font-bold text-seed-fg-brand">
-              {isPaidOnlyVariant ? "전면 유료 실험군" : "무료요약+상세결제 실험군"}
-            </div>
-            <p className="mt-1 text-[11px] text-seed-fg-subtle">
-              실험 소스: {pricingSource} · variant: {pricingVariant}
-            </p>
             <ActionButton
               variant="brandSolid"
               size="large"
@@ -414,7 +367,7 @@ export default function LoveFortuneApp() {
               {error ? <p className="mt-3 text-[13px] text-[var(--seed-color-fg-critical)]">{error}</p> : null}
 
               <ActionButton variant="brandSolid" size="large" className="mt-4 w-full" onClick={submit}>
-                {isPaidOnlyVariant ? "490원 결제 후 분석하기" : "무료 요약 먼저 보기"}
+                490원 결제 후 분석하기
               </ActionButton>
             </section>
           </ScreenFrame>
@@ -431,9 +384,7 @@ export default function LoveFortuneApp() {
                 연애운을 읽는 중이에요
               </Text>
               <Text as="p" className="mt-2 block text-sm leading-[1.45] text-seed-fg-muted">
-                {isPaidOnlyVariant
-                  ? "결제형 전체 리포트를 생성 중입니다. 앱을 닫아도 요청 ID로 이어볼 수 있어요."
-                  : "무료 요약 리포트를 먼저 생성 중입니다. 앱을 닫아도 요청 ID로 이어볼 수 있어요."}
+                결제형 전체 리포트를 생성 중입니다. 앱을 닫아도 요청 ID로 이어볼 수 있어요.
               </Text>
               {jobId ? (
                 <p className="mt-2 text-xs text-seed-fg-subtle">
@@ -467,8 +418,7 @@ export default function LoveFortuneApp() {
                 </ActionButton>
               </div>
 
-              {showFullResult ? (
-                <>
+              <>
                   <div className="mt-4 grid grid-cols-3 gap-2.5">
                     <article className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-2 py-3 text-center">
                       <span className="block text-xs text-seed-fg-subtle">연애 점수</span>
@@ -534,38 +484,7 @@ export default function LoveFortuneApp() {
                       근거코드: {result.evidenceCodes.join(", ")}
                     </p>
                   )}
-                </>
-              ) : (
-                <>
-                  <div className="mt-4 grid grid-cols-1 gap-2.5">
-                    <article className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-2 py-3 text-center">
-                      <span className="block text-xs text-seed-fg-subtle">무료 요약 연애 점수</span>
-                      <strong className="mt-1.5 block text-[19px] font-bold text-seed-fg-primary">
-                        {result.loveScore}점
-                      </strong>
-                    </article>
-                  </div>
-                  <div className="mt-4 grid gap-2 text-left text-sm leading-[1.45] text-seed-fg-muted">
-                    <p>
-                      <b className="text-seed-fg-primary">무료 요약:</b> {result.summary}
-                    </p>
-                    <p>
-                      <b className="text-seed-fg-primary">타이밍 힌트:</b> {result.timingHint}
-                    </p>
-                  </div>
-                  <div className="mt-3 rounded-2xl border border-seed-stroke-brand bg-seed-bg-brand-weak px-3 py-3 text-left">
-                    <p className="text-xs font-semibold text-seed-fg-primary">
-                      상세 리포트(결혼 전환/리스크/근거코드) 잠금 상태
-                    </p>
-                    <p className="mt-1 text-xs text-seed-fg-muted">
-                      490원 결제 시 전체 결과를 확인할 수 있어요.
-                    </p>
-                    <ActionButton variant="brandSolid" size="medium" className="mt-2 w-full" onClick={unlockDetail}>
-                      490원 결제로 상세 보기 (실험)
-                    </ActionButton>
-                  </div>
-                </>
-              )}
+              </>
 
               <ActionButton
                 variant="brandSolid"
