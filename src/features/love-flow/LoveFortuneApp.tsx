@@ -155,6 +155,7 @@ function legalLinkClass() {
 }
 
 export default function LoveFortuneApp() {
+  const canUseMockPayment = process.env.NEXT_PUBLIC_ALLOW_MOCK_PAYMENTS === "true";
   const [step, setStep] = useState<Step>("landing");
   const [form, setForm] = useState<SajuInput>(DEFAULT_INPUT);
   const [error, setError] = useState("");
@@ -637,15 +638,17 @@ export default function LoveFortuneApp() {
                 토스 결제창 열기
               </ActionButton>
 
-              <ActionButton
-                variant="neutralWeak"
-                size="large"
-                className="mt-2 w-full"
-                onClick={confirmMockPayment}
-                disabled={isPaying}
-              >
-                테스트 결제 완료 처리
-              </ActionButton>
+              {canUseMockPayment ? (
+                <ActionButton
+                  variant="neutralWeak"
+                  size="large"
+                  className="mt-2 w-full"
+                  onClick={confirmMockPayment}
+                  disabled={isPaying}
+                >
+                  테스트 결제 완료 처리
+                </ActionButton>
+              ) : null}
             </section>
           </ScreenFrame>
         </>
