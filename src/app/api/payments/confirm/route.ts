@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ job: sanitizeLoveJob(job) });
     }
 
-    const allowMock = process.env.ALLOW_MOCK_PAYMENTS !== "false";
+    const allowMock = process.env.ALLOW_MOCK_PAYMENTS === "true";
 
     if (process.env.TOSS_SECRET_KEY) {
       if (!body.paymentKey) {
