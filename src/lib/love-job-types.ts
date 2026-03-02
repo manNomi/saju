@@ -27,7 +27,7 @@ export type LoveJobStatus = "awaiting_payment" | "pending" | "processing" | "com
 export type PaymentStatus = "unpaid" | "paid" | "failed";
 
 export type LovePaymentInfo = {
-  provider: "toss" | "mock";
+  provider: "toss";
   orderId: string;
   amount: number;
   currency: "KRW";

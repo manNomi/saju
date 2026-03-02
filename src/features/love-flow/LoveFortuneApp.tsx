@@ -155,7 +155,6 @@ function legalLinkClass() {
 }
 
 export default function LoveFortuneApp() {
-  const canUseMockPayment = process.env.NEXT_PUBLIC_ALLOW_MOCK_PAYMENTS === "true";
   const [step, setStep] = useState<Step>("landing");
   const [form, setForm] = useState<SajuInput>(DEFAULT_INPUT);
   const [error, setError] = useState("");
@@ -387,7 +386,7 @@ export default function LoveFortuneApp() {
 
     const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
     if (!clientKey) {
-      setError("토스 클라이언트 키가 없어 테스트 결제로 진행해 주세요.");
+      setError("토스 결제 설정이 누락되었어요. 운영자에게 문의해 주세요.");
       return;
     }
 
@@ -417,31 +416,6 @@ export default function LoveFortuneApp() {
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "결제 창 실행에 실패했어요.");
-      setIsPaying(false);
-    }
-  };
-
-  const confirmMockPayment = async () => {
-    if (!job || !accessToken) return;
-
-    setIsPaying(true);
-    setError("");
-
-    try {
-      const confirmed = await confirmLovePaymentRequest({
-        jobId: job.id,
-        accessToken,
-        paymentKey: `mock_${Date.now()}`,
-        orderId: job.payment.orderId,
-        amount: job.payment.amount,
-      });
-
-      await logClientEvent({ event: "payment_confirm_mock", jobId: job.id });
-      applyJobState(confirmed.job, accessToken);
-      setStep("pending");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "테스트 결제 확인에 실패했어요.");
-    } finally {
       setIsPaying(false);
     }
   };
@@ -637,18 +611,6 @@ export default function LoveFortuneApp() {
               >
                 토스 결제창 열기
               </ActionButton>
-
-              {canUseMockPayment ? (
-                <ActionButton
-                  variant="neutralWeak"
-                  size="large"
-                  className="mt-2 w-full"
-                  onClick={confirmMockPayment}
-                  disabled={isPaying}
-                >
-                  테스트 결제 완료 처리
-                </ActionButton>
-              ) : null}
             </section>
           </ScreenFrame>
         </>

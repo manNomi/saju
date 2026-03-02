@@ -6,7 +6,7 @@ export async function GET() {
     ok: true,
     time: new Date().toISOString(),
     firestoreMode: getFirestoreBackendMode(),
-    paymentMode: process.env.TOSS_SECRET_KEY ? "toss" : "mock",
+    paymentMode: process.env.TOSS_SECRET_KEY ? "toss" : "not_configured",
     captchaEnabled: Boolean(process.env.TURNSTILE_SECRET_KEY),
   });
 }

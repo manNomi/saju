@@ -40,32 +40,16 @@ async function main() {
   const { job, accessToken } = created;
   log(`job created id=${job.id}`);
 
-  await requestJson("/api/payments/confirm", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jobId: job.id,
-      accessToken,
-      paymentKey: `mock_${Date.now()}`,
-      orderId: job.payment.orderId,
-      amount: job.payment.amount,
-    }),
-  });
-  log("payment confirmed");
-
-  await requestJson("/api/jobs/process", { method: "POST" });
-  log("processor triggered");
-
   const loaded = await requestJson(
     `/api/jobs/${encodeURIComponent(job.id)}?token=${encodeURIComponent(accessToken)}`,
     { method: "GET", cache: "no-store" },
   );
 
-  if (!loaded.job?.result) {
-    throw new Error("result missing after processing");
+  if (loaded.job?.status !== "awaiting_payment") {
+    throw new Error(`unexpected status: ${loaded.job?.status ?? "unknown"}`);
   }
 
-  log(`result ready loveScore=${loaded.job.result.loveScore}`);
+  log("pre-payment flow OK (awaiting_payment)");
   log("OK");
 }
 

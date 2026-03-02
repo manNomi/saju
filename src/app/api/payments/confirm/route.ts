@@ -72,23 +72,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ job: sanitizeLoveJob(job) });
     }
 
-    const allowMock = process.env.ALLOW_MOCK_PAYMENTS === "true";
-
-    if (process.env.TOSS_SECRET_KEY) {
-      if (!body.paymentKey) {
-        return NextResponse.json({ error: "paymentKey가 필요해요." }, { status: 400 });
-      }
-
-      await confirmWithToss({
-        paymentKey: body.paymentKey,
-        orderId: body.orderId,
-        amount: body.amount,
-      });
-    } else if (!allowMock) {
+    if (!process.env.TOSS_SECRET_KEY) {
       return NextResponse.json({ error: "결제 연동이 설정되지 않았어요." }, { status: 500 });
     }
 
-    const paymentKey = body.paymentKey?.trim() || `mock_${Date.now()}`;
+    if (!body.paymentKey) {
+      return NextResponse.json({ error: "paymentKey가 필요해요." }, { status: 400 });
+    }
+
+    await confirmWithToss({
+      paymentKey: body.paymentKey,
+      orderId: body.orderId,
+      amount: body.amount,
+    });
+
+    const paymentKey = body.paymentKey.trim();
     const updated = await markPaymentAsPaid({
       jobId: body.jobId,
       accessToken: body.accessToken,
@@ -97,7 +95,7 @@ export async function POST(request: NextRequest) {
 
     logEvent("info", "payment_confirmed", {
       jobId: body.jobId,
-      mode: process.env.TOSS_SECRET_KEY ? "toss" : "mock",
+      mode: "toss",
     });
 
     return NextResponse.json({ job: updated });

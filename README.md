@@ -5,7 +5,7 @@
 ## 핵심 플로우
 
 1. 사용자가 사주 입력
-2. 결제 진행 (토스 또는 mock)
+2. 토스 결제 진행
 3. 결제 확인 후 서버에서 분석 실행
 4. 결과를 `요청 ID + 조회 키(token)`로 재조회
 
@@ -39,8 +39,6 @@ FIREBASE_SERVER_FALLBACK_PUBLIC=true
 # Toss 결제
 NEXT_PUBLIC_TOSS_CLIENT_KEY=
 TOSS_SECRET_KEY=
-ALLOW_MOCK_PAYMENTS=true
-NEXT_PUBLIC_ALLOW_MOCK_PAYMENTS=true
 
 # Abuse 방지
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=
