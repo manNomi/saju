@@ -114,8 +114,11 @@ export type LoveAnalysis = {
   summary: string;
   highlight: string;
   caution: string;
+  highlights: string[];
+  cautions: string[];
   timingHint: string;
   topYears: YearLoveLuck[];
+  timeline: YearLoveLuck[];
   dayMasterStrength: number;
   elementProfile: ElementProfile;
   evidenceCodes: string[];
@@ -882,8 +885,11 @@ export function analyzeLoveFortune(input: BirthInput): LoveAnalysis {
     summary,
     highlight: highlights[0],
     caution: cautions[0],
+    highlights,
+    cautions,
     timingHint,
     topYears,
+    timeline,
     dayMasterStrength,
     elementProfile,
     evidenceCodes,

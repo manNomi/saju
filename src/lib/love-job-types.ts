@@ -8,6 +8,18 @@ export type LoveJobInput = {
   birthPlace: string;
 };
 
+export type LoveResultSection = {
+  title: string;
+  body: string;
+};
+
+export type LoveYearGuide = {
+  year: number;
+  loveChance: number;
+  breakupRisk: number;
+  focus: string;
+};
+
 export type LoveJobResult = {
   loveScore: number;
   marriageScore: number;
@@ -21,6 +33,9 @@ export type LoveJobResult = {
   highlight: string;
   caution: string;
   timingHint: string;
+  detailedReport: string;
+  detailedSections: LoveResultSection[];
+  yearlyGuidance: LoveYearGuide[];
   modelVersion: string;
 };
 

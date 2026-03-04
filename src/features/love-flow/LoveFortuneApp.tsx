@@ -2,20 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ActionButton, Text, TextField } from "@seed-design/react";
-import {
-  clearActiveLoveJob,
-  getActiveLoveJob,
-  setActiveLoveJob,
-} from "@/lib/love-client-storage";
-import {
-  createLoveJobRequest,
-  getLoveJobRequest,
-  logClientEvent,
-  triggerJobProcessorRequest,
-} from "@/lib/love-api-client";
-import { type LoveJobInput, type LoveJobPublic, type LoveJobResult } from "@/lib/love-job-types";
+import { createLoveJobRequest, logClientEvent } from "@/lib/love-api-client";
+import { type LoveJobInput } from "@/lib/love-job-types";
 
 declare global {
   interface Window {
@@ -26,10 +16,9 @@ declare global {
   }
 }
 
-type Step = "landing" | "input" | "pending" | "result";
+type Step = "landing" | "input" | "submitted";
 
 type SajuInput = LoveJobInput;
-type ResultPayload = LoveJobResult;
 
 const DEFAULT_INPUT: SajuInput = {
   name: "",
@@ -78,33 +67,6 @@ function TopBar({ title, onBack }: { title: string; onBack?: () => void }) {
   );
 }
 
-function parseJobFromUrl() {
-  if (typeof window === "undefined") return null;
-
-  const url = new URL(window.location.href);
-  const rid = url.searchParams.get("rid")?.trim();
-  const token = url.searchParams.get("token")?.trim();
-
-  if (!rid || !token) return null;
-  return { rid, token };
-}
-
-function syncJobToUrl(jobId: string | null, accessToken: string | null) {
-  if (typeof window === "undefined") return;
-
-  const url = new URL(window.location.href);
-
-  if (jobId && accessToken) {
-    url.searchParams.set("rid", jobId);
-    url.searchParams.set("token", accessToken);
-  } else {
-    url.searchParams.delete("rid");
-    url.searchParams.delete("token");
-  }
-
-  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-}
-
 function legalLinkClass() {
   return "text-[11px] text-seed-fg-subtle underline underline-offset-2";
 }
@@ -113,72 +75,7 @@ export default function LoveFortuneApp() {
   const [step, setStep] = useState<Step>("landing");
   const [form, setForm] = useState<SajuInput>(DEFAULT_INPUT);
   const [error, setError] = useState("");
-  const [job, setJob] = useState<LoveJobPublic | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [result, setResult] = useState<ResultPayload | null>(null);
-  const [copied, setCopied] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
-
-  const customerName = useMemo(() => form.name || "고객님", [form.name]);
-  const localProcessAssist = process.env.NEXT_PUBLIC_LOCAL_PROCESS_ASSIST === "true";
-
-  const applyJobState = useCallback((nextJob: LoveJobPublic, token: string) => {
-    setJob(nextJob);
-    setAccessToken(token);
-    setForm(nextJob.input);
-    setActiveLoveJob(nextJob.id, token);
-    syncJobToUrl(nextJob.id, token);
-
-    if (nextJob.status === "completed" && nextJob.result) {
-      setResult(nextJob.result);
-      setStep("result");
-      setError("");
-      return;
-    }
-
-    if (nextJob.status === "failed") {
-      setResult(nextJob.result);
-      setStep("input");
-      setError(nextJob.error ?? "분석 작업이 실패했어요. 다시 요청해 주세요.");
-      return;
-    }
-
-    setResult(null);
-    setStep("pending");
-    setError("");
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const bootstrap = async () => {
-      const fromUrl = parseJobFromUrl();
-      const active = getActiveLoveJob();
-      const target = fromUrl
-        ? { jobId: fromUrl.rid, token: fromUrl.token }
-        : active
-          ? { jobId: active.jobId, token: active.accessToken }
-          : null;
-
-      if (!target || cancelled) return;
-
-      try {
-        const loaded = await getLoveJobRequest(target.jobId, target.token);
-        if (cancelled) return;
-        applyJobState(loaded.job, target.token);
-      } catch {
-        if (!cancelled) {
-          clearActiveLoveJob();
-        }
-      }
-    };
-
-    void bootstrap();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [applyJobState]);
 
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) return;
@@ -213,42 +110,6 @@ export default function LoveFortuneApp() {
     document.body.appendChild(script);
   }, []);
 
-  useEffect(() => {
-    if (step !== "pending" || !job || !accessToken) return;
-
-    let cancelled = false;
-
-    const tick = async () => {
-      if (localProcessAssist) {
-        try {
-          await triggerJobProcessorRequest();
-        } catch {
-          // best-effort local assist
-        }
-      }
-
-      try {
-        const loaded = await getLoveJobRequest(job.id, accessToken);
-        if (cancelled) return;
-        applyJobState(loaded.job, accessToken);
-      } catch {
-        if (!cancelled) {
-          setError("상태 조회에 실패했어요. 잠시 후 다시 시도해 주세요.");
-        }
-      }
-    };
-
-    void tick();
-    const timer = window.setInterval(() => {
-      void tick();
-    }, 3000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [step, job, accessToken, applyJobState, localProcessAssist]);
-
   const updateField = <K extends keyof SajuInput>(key: K, value: SajuInput[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -269,19 +130,10 @@ export default function LoveFortuneApp() {
     try {
       const created = await createLoveJobRequest(form, captchaToken || undefined);
       await logClientEvent({ event: "job_submit", jobId: created.job.id });
-      applyJobState(created.job, created.accessToken);
+      setStep("submitted");
     } catch (e) {
       setError(e instanceof Error ? e.message : "요청 생성에 실패했어요.");
     }
-  };
-
-  const copyResultLink = async () => {
-    if (!job || !accessToken || typeof window === "undefined" || !navigator?.clipboard) return;
-
-    const url = `${window.location.origin}/?rid=${encodeURIComponent(job.id)}&token=${encodeURIComponent(accessToken)}`;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1200);
   };
 
   return (
@@ -442,124 +294,34 @@ export default function LoveFortuneApp() {
         </>
       )}
 
-      {step === "pending" && (
+      {step === "submitted" && (
         <>
-          <TopBar title="분석 대기" onBack={() => setStep("input")} />
+          <TopBar title="요청 완료" onBack={() => setStep("landing")} />
           <ScreenFrame>
             <section className={`${cardClassName} text-center`}>
-              <CarrotBuddy label="분석 진행 캐릭터" />
+              <CarrotBuddy label="이메일 안내 캐릭터" />
               <Text as="h2" className="mt-1 block text-[24px] font-black leading-[1.25] text-seed-fg-primary">
-                자동 분석을 진행 중이에요
+                요청이 접수됐어요
               </Text>
               <Text as="p" className="mt-2 block text-sm leading-[1.45] text-seed-fg-muted">
-                Codex Automation이 큐 작업을 처리하면 이메일과 화면에서 결과를 확인할 수 있어요.
+                분석이 완료되면 입력하신 이메일로 결과를 보내드릴게요.
               </Text>
-              {job ? (
-                <p className="mt-2 text-xs text-seed-fg-subtle">
-                  요청 ID: <b className="text-seed-fg-primary">{job.id}</b>
-                </p>
-              ) : null}
-              <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-seed-bg-fill">
-                <span className="block h-full w-[35%] animate-loading rounded-full bg-seed-bg-brand" />
-              </div>
-            </section>
-          </ScreenFrame>
-        </>
-      )}
-
-      {step === "result" && result && job && (
-        <>
-          <TopBar title="연애운 결과" onBack={() => setStep("input")} />
-          <ScreenFrame>
-            <section className={`${cardClassName} text-center`}>
-              <CarrotBuddy label="결과 캐릭터" />
-              <Text as="h2" className="mt-1 block text-[24px] font-black leading-[1.25] text-seed-fg-primary">
-                {customerName}의 연애 리포트
-              </Text>
-
-              <div className="mt-3 flex items-center justify-center gap-2">
-                <p className="rounded-full border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-1 text-xs text-seed-fg-muted">
-                  요청 ID: <b className="text-seed-fg-primary">{job.id}</b>
-                </p>
-                <ActionButton variant="neutralWeak" size="small" onClick={copyResultLink}>
-                  {copied ? "복사됨" : "링크 복사"}
-                </ActionButton>
-              </div>
-
-              <p className="mt-2 text-xs text-seed-fg-muted">
-                이메일 발송: {job.email.sent ? "완료" : "대기/실패"}
-                {job.email.error ? ` (${job.email.error})` : ""}
+              <p className="mt-2 text-xs text-seed-fg-subtle">
+                메일 수신함과 스팸함을 함께 확인해 주세요.
               </p>
-
-              <div className="mt-4 grid grid-cols-3 gap-2.5">
-                <article className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-2 py-3 text-center">
-                  <span className="block text-xs text-seed-fg-subtle">연애 점수</span>
-                  <strong className="mt-1.5 block text-[17px] font-bold text-seed-fg-primary">{result.loveScore}점</strong>
-                </article>
-                <article className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-2 py-3 text-center">
-                  <span className="block text-xs text-seed-fg-subtle">결혼 전환</span>
-                  <strong className="mt-1.5 block text-[17px] font-bold text-seed-fg-primary">
-                    {result.marriageScore}점
-                  </strong>
-                </article>
-                <article className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-2 py-3 text-center">
-                  <span className="block text-xs text-seed-fg-subtle">리스크</span>
-                  <strong className="mt-1.5 block text-[17px] font-bold text-seed-fg-primary">{result.riskScore}점</strong>
-                </article>
-              </div>
-
-              <div className="mt-3 rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2 text-left text-xs text-seed-fg-muted">
-                <p>
-                  <b className="text-seed-fg-primary">모델 신뢰도:</b> {Math.round(result.confidence * 100)}%
-                </p>
-                <p className="mt-1">
-                  <b className="text-seed-fg-primary">우세 오행:</b> {result.dominantElement} /{" "}
-                  <b className="text-seed-fg-primary">보완 오행:</b> {result.weakestElement}
-                </p>
-              </div>
-
-              <div className="mt-4 grid gap-2 text-left text-sm leading-[1.45] text-seed-fg-muted">
-                <p>
-                  <b className="text-seed-fg-primary">핵심 요약:</b> {result.summary}
-                </p>
-                <p>
-                  <b className="text-seed-fg-primary">좋은 흐름:</b> {result.highlight}
-                </p>
-                <p>
-                  <b className="text-seed-fg-primary">주의 포인트:</b> {result.caution}
-                </p>
-                <p>
-                  <b className="text-seed-fg-primary">타이밍 힌트:</b> {result.timingHint}
-                </p>
-              </div>
-
-              {result.topYears.length > 0 && (
-                <div className="mt-3 rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-3 text-left">
-                  <p className="text-xs font-semibold text-seed-fg-primary">추천 타이밍 TOP 3</p>
-                  <ul className="mt-2 space-y-1.5 text-xs text-seed-fg-muted">
-                    {result.topYears.map((row) => (
-                      <li key={row.year}>
-                        {row.year}년 · 기대 {Math.round(row.loveChance * 100)}% · 리스크{" "}
-                        {Math.round(row.breakupRisk * 100)}%
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {result.evidenceCodes.length > 0 && (
-                <p className="mt-3 text-left text-[11px] text-seed-fg-subtle">
-                  근거코드: {result.evidenceCodes.join(", ")}
-                </p>
-              )}
 
               <ActionButton
                 variant="brandSolid"
                 size="large"
                 className="mt-4 w-full"
-                onClick={() => setStep("input")}
+                onClick={() => {
+                  setForm(DEFAULT_INPUT);
+                  setCaptchaToken("");
+                  setError("");
+                  setStep("landing");
+                }}
               >
-                다시 분석하기
+                처음으로 돌아가기
               </ActionButton>
             </section>
           </ScreenFrame>
