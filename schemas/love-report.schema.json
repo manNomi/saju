@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://saju.local/schemas/love-report.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "loveScore",
+    "marriageScore",
+    "riskScore",
+    "confidence",
+    "dominantElement",
+    "weakestElement",
+    "topYears",
+    "evidenceCodes",
+    "summary",
+    "highlight",
+    "caution",
+    "timingHint",
+    "detailedReport",
+    "detailedSections",
+    "yearlyGuidance",
+    "modelVersion"
+  ],
+  "properties": {
+    "loveScore": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "marriageScore": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "riskScore": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "dominantElement": {
+      "type": "string",
+      "enum": ["목", "화", "토", "금", "수"]
+    },
+    "weakestElement": {
+      "type": "string",
+      "enum": ["목", "화", "토", "금", "수"]
+    },
+    "topYears": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["year", "loveChance", "breakupRisk"],
+        "properties": {
+          "year": {
+            "type": "integer",
+            "minimum": 1900,
+            "maximum": 2200
+          },
+          "loveChance": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "breakupRisk": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "evidenceCodes": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 64
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 30,
+      "maxLength": 500
+    },
+    "highlight": {
+      "type": "string",
+      "minLength": 30,
+      "maxLength": 500
+    },
+    "caution": {
+      "type": "string",
+      "minLength": 30,
+      "maxLength": 500
+    },
+    "timingHint": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 500
+    },
+    "detailedReport": {
+      "type": "string",
+      "minLength": 400,
+      "maxLength": 8000
+    },
+    "detailedSections": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "body"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "body": {
+            "type": "string",
+            "minLength": 80,
+            "maxLength": 2000
+          }
+        }
+      }
+    },
+    "yearlyGuidance": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["year", "loveChance", "breakupRisk", "focus"],
+        "properties": {
+          "year": {
+            "type": "integer",
+            "minimum": 1900,
+            "maximum": 2200
+          },
+          "loveChance": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "breakupRisk": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "focus": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 300
+          }
+        }
+      }
+    },
+    "modelVersion": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 64
+    }
+  }
+}

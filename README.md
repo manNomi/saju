@@ -80,6 +80,24 @@ npm install
 npm run dev
 ```
 
+## Codex Worker 실행
+
+사주 결과 생성을 Codex CLI가 직접 담당하는 워커입니다.
+
+```bash
+# 1회 배치 처리 (queued 최대 3건)
+npm run worker:once
+
+# 상시 루프 처리 (45초 간격)
+npm run worker:loop
+```
+
+워커 필수 조건:
+
+- `codex login` 완료
+- `.env.local`에 Firebase Admin 키 설정
+- 이메일 발송 시 `RESEND_API_KEY`, `EMAIL_FROM` 설정
+
 ## 자동화/크론 예시
 
 ```bash
