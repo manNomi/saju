@@ -25,6 +25,19 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function normalizeNameForJobId(name: string) {
+  const normalized = name
+    .normalize("NFKC")
+    .trim()
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^\p{L}\p{N}-]/gu, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+
+  return normalized || "guest";
+}
+
 export function validateLoveInput(input: LoveJobInput) {
   if (!input.birthDate) {
     throw new Error("birth_date_required");
@@ -76,7 +89,8 @@ export async function createLoveJobWithToken(payload: {
   const normalizedInput = defaultInput(payload.input);
   validateLoveInput(normalizedInput);
 
-  const id = nanoid(20);
+  const namePart = normalizeNameForJobId(normalizedInput.name);
+  const id = `${namePart}-${nanoid(12)}`;
   const accessToken = nanoid(32);
   const now = Date.now();
 
