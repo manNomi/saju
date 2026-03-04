@@ -90,6 +90,9 @@ npm run worker:once
 
 # 상시 루프 처리 (45초 간격)
 npm run worker:loop
+
+# 타임아웃/복구 옵션 예시
+node --env-file=.env.local scripts/codex-worker.mjs --once --max=3 --timeout=180 --stale=900
 ```
 
 워커 필수 조건:
@@ -97,6 +100,7 @@ npm run worker:loop
 - `codex login` 완료
 - `.env.local`에 Firebase Admin 키 설정
 - 이메일 발송 시 `RESEND_API_KEY`, `EMAIL_FROM` 설정
+- 필요 시 `CODEX_EXEC_TIMEOUT_SEC`, `CODEX_STALE_PROCESSING_SEC`로 기본값 조정 가능
 
 ### macOS launchd (10분 간격 자동 실행)
 

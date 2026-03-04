@@ -14,6 +14,8 @@ const SCHEMA_PATH = path.join(ROOT_DIR, "schemas", "love-report.schema.json");
 const LOVE_JOBS_COLLECTION = "sajuRequests";
 const DEFAULT_MAX = 5;
 const DEFAULT_LOOP_INTERVAL_SEC = 45;
+const DEFAULT_EXEC_TIMEOUT_SEC = 240;
+const DEFAULT_STALE_PROCESSING_SEC = 900;
 
 function nowIso() {
   return new Date().toISOString();
@@ -36,6 +38,10 @@ function parseArgs(argv) {
     loop: false,
     max: DEFAULT_MAX,
     intervalSec: DEFAULT_LOOP_INTERVAL_SEC,
+    execTimeoutSec: Number(process.env.CODEX_EXEC_TIMEOUT_SEC || DEFAULT_EXEC_TIMEOUT_SEC),
+    staleProcessingSec: Number(
+      process.env.CODEX_STALE_PROCESSING_SEC || DEFAULT_STALE_PROCESSING_SEC,
+    ),
     model: process.env.CODEX_MODEL?.trim() || "",
   };
 
@@ -52,6 +58,14 @@ function parseArgs(argv) {
     }
     if (raw.startsWith("--model=")) {
       args.model = raw.split("=")[1]?.trim() ?? "";
+    }
+    if (raw.startsWith("--timeout=")) {
+      const next = Number(raw.split("=")[1]);
+      if (Number.isFinite(next) && next >= 30) args.execTimeoutSec = Math.floor(next);
+    }
+    if (raw.startsWith("--stale=")) {
+      const next = Number(raw.split("=")[1]);
+      if (Number.isFinite(next) && next >= 60) args.staleProcessingSec = Math.floor(next);
     }
   }
 
@@ -152,6 +166,70 @@ async function claimNextQueuedJob(db, scanLimit = 20) {
   return null;
 }
 
+async function recoverStaleProcessingJobs(db, staleProcessingSec, scanLimit = 20) {
+  if (!Number.isFinite(staleProcessingSec) || staleProcessingSec < 60) {
+    return 0;
+  }
+
+  const now = Date.now();
+  const staleMs = staleProcessingSec * 1000;
+  const snap = await db
+    .collection(LOVE_JOBS_COLLECTION)
+    .where("status", "==", "processing")
+    .limit(scanLimit)
+    .get();
+
+  let recovered = 0;
+
+  for (const row of snap.docs) {
+    const current = row.data();
+    const startedAt = Number(current?.processingStartedAt ?? 0);
+    if (!startedAt || now - startedAt < staleMs) continue;
+
+    try {
+      const updated = await db.runTransaction(async (tx) => {
+        const ref = db.collection(LOVE_JOBS_COLLECTION).doc(row.id);
+        const fresh = await tx.get(ref);
+        if (!fresh.exists) return false;
+
+        const job = fresh.data();
+        if (!job || job.status !== "processing") return false;
+
+        const freshStartedAt = Number(job.processingStartedAt ?? 0);
+        if (!freshStartedAt || now - freshStartedAt < staleMs) return false;
+
+        tx.update(ref, {
+          status: "queued",
+          updatedAt: now,
+          processingStartedAt: null,
+          processingCompletedAt: now,
+          error: "processing_stale_requeued",
+          retryCount: Number(job.retryCount ?? 0) + 1,
+          email: {
+            ...baseEmail(job),
+            sent: false,
+            error: "processing_stale_requeued",
+          },
+        });
+
+        return true;
+      });
+
+      if (updated) {
+        recovered += 1;
+        log("info", "job_stale_recovered", {
+          jobId: row.id,
+          staleProcessingSec,
+        });
+      }
+    } catch {
+      // Ignore concurrent updates and continue.
+    }
+  }
+
+  return recovered;
+}
+
 function parseJsonOutput(raw) {
   const trimmed = raw.trim();
   if (!trimmed) {
@@ -227,7 +305,7 @@ function buildCodexPrompt(job) {
   ].join("\n");
 }
 
-async function runCodexReport(job, model) {
+async function runCodexReport(job, model, execTimeoutSec) {
   const outPath = path.join(os.tmpdir(), `codex-love-report-${job.id}-${Date.now()}.json`);
   const prompt = buildCodexPrompt(job);
 
@@ -250,9 +328,13 @@ async function runCodexReport(job, model) {
 
   args.push(prompt);
 
-  log("info", "codex_exec_start", { jobId: job.id, model: model || "default" });
+  log("info", "codex_exec_start", {
+    jobId: job.id,
+    model: model || "default",
+    timeoutSec: execTimeoutSec,
+  });
 
-  const { code, stderr } = await new Promise((resolve) => {
+  const { code, stderr, timeoutHit, durationMs } = await new Promise((resolve) => {
     const child = spawn("codex", args, {
       cwd: ROOT_DIR,
       env: process.env,
@@ -260,23 +342,60 @@ async function runCodexReport(job, model) {
     });
 
     let stderrBuf = "";
+    let timeoutHit = false;
+    let settled = false;
+    const startAt = Date.now();
+    const timeoutMs = execTimeoutSec * 1000;
+    const timer = setTimeout(() => {
+      timeoutHit = true;
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), 3000).unref();
+    }, timeoutMs);
 
     child.stderr.on("data", (chunk) => {
       stderrBuf += String(chunk ?? "");
     });
 
+    // Drain stdout so child process never blocks on a full stdout pipe.
+    child.stdout.on("data", () => {});
+
     child.on("close", (exitCode) => {
-      resolve({ code: exitCode ?? 1, stderr: stderrBuf.trim() });
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({
+        code: exitCode ?? 1,
+        stderr: stderrBuf.trim(),
+        timeoutHit,
+        durationMs: Date.now() - startAt,
+      });
     });
 
     child.on("error", (error) => {
-      resolve({ code: 1, stderr: String(error?.message ?? error) });
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({
+        code: 1,
+        stderr: String(error?.message ?? error),
+        timeoutHit,
+        durationMs: Date.now() - startAt,
+      });
     });
   });
+
+  if (timeoutHit) {
+    throw new Error(`codex_exec_timeout:${execTimeoutSec}s`);
+  }
 
   if (code !== 0) {
     throw new Error(`codex_exec_failed:${stderr || "unknown"}`);
   }
+
+  log("info", "codex_exec_done", {
+    jobId: job.id,
+    durationMs,
+  });
 
   try {
     const raw = await readFile(outPath, "utf8");
@@ -408,7 +527,7 @@ async function failJob(db, job, errorMessage) {
     });
 }
 
-async function processOneJob(db, job, model) {
+async function processOneJob(db, job, model, execTimeoutSec) {
   if (job?.email?.sent) {
     await db
       .collection(LOVE_JOBS_COLLECTION)
@@ -425,7 +544,7 @@ async function processOneJob(db, job, model) {
 
   let result = null;
   try {
-    result = await runCodexReport(job, model);
+    result = await runCodexReport(job, model, execTimeoutSec);
     const email = await sendResultEmail(job, result);
     await completeJob(db, job, result, email);
     log("info", "job_completed", {
@@ -445,22 +564,23 @@ async function processOneJob(db, job, model) {
   }
 }
 
-async function runBatch(db, maxJobs, model) {
+async function runBatch(db, maxJobs, model, execTimeoutSec, staleProcessingSec) {
   let processed = 0;
   let completed = 0;
   let failed = 0;
+  const recovered = await recoverStaleProcessingJobs(db, staleProcessingSec, maxJobs * 2);
 
   for (let i = 0; i < maxJobs; i += 1) {
     const job = await claimNextQueuedJob(db, 20);
     if (!job) break;
 
     processed += 1;
-    const status = await processOneJob(db, job, model);
+    const status = await processOneJob(db, job, model, execTimeoutSec);
     if (status === "completed") completed += 1;
     if (status === "failed") failed += 1;
   }
 
-  return { processed, completed, failed };
+  return { processed, completed, failed, recovered };
 }
 
 async function main() {
@@ -471,17 +591,31 @@ async function main() {
     mode: args.loop ? "loop" : "once",
     max: args.max,
     intervalSec: args.intervalSec,
+    execTimeoutSec: args.execTimeoutSec,
+    staleProcessingSec: args.staleProcessingSec,
     model: args.model || "default",
   });
 
   if (args.once) {
-    const batch = await runBatch(db, args.max, args.model);
+    const batch = await runBatch(
+      db,
+      args.max,
+      args.model,
+      args.execTimeoutSec,
+      args.staleProcessingSec,
+    );
     log("info", "worker_batch_done", batch);
     return;
   }
 
   while (true) {
-    const batch = await runBatch(db, args.max, args.model);
+    const batch = await runBatch(
+      db,
+      args.max,
+      args.model,
+      args.execTimeoutSec,
+      args.staleProcessingSec,
+    );
     log("info", "worker_batch_done", batch);
     await sleep(args.intervalSec * 1000);
   }
