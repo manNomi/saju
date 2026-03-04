@@ -9,7 +9,10 @@
     "lint": "eslint",
     "app:smoke": "node --env-file=.env.local scripts/firebase-smoke.mjs",
     "worker:once": "node --env-file=.env.local scripts/codex-worker.mjs --once --max=3",
-    "worker:loop": "node --env-file=.env.local scripts/codex-worker.mjs --loop --interval=45 --max=3"
+    "worker:loop": "node --env-file=.env.local scripts/codex-worker.mjs --loop --interval=45 --max=3",
+    "worker:launchd:install": "bash scripts/install-worker-launchd.sh",
+    "worker:launchd:uninstall": "bash scripts/uninstall-worker-launchd.sh",
+    "worker:launchd:status": "bash scripts/status-worker-launchd.sh"
   },
   "dependencies": {
     "@seed-design/css": "^1.2.3",

@@ -98,6 +98,24 @@ npm run worker:loop
 - `.env.local`에 Firebase Admin 키 설정
 - 이메일 발송 시 `RESEND_API_KEY`, `EMAIL_FROM` 설정
 
+### macOS launchd (10분 간격 자동 실행)
+
+```bash
+# 설치 (RunAtLoad + 600초 간격)
+npm run worker:launchd:install
+
+# 상태/로그 확인
+npm run worker:launchd:status
+
+# 제거
+npm run worker:launchd:uninstall
+```
+
+로그 파일:
+
+- `logs/codex-worker.log`
+- `logs/codex-worker.err.log`
+
 ## 자동화/크론 예시
 
 ```bash
