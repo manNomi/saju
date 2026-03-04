@@ -9,6 +9,20 @@ LOG_DIR="${ROOT_DIR}/logs"
 OUT_LOG="${LOG_DIR}/codex-worker.log"
 ERR_LOG="${LOG_DIR}/codex-worker.err.log"
 USER_UID="$(id -u)"
+NODE_BIN="$(command -v node || true)"
+
+if [[ -z "${NODE_BIN}" ]]; then
+  echo "node binary not found in PATH" >&2
+  exit 1
+fi
+
+case "${ROOT_DIR}" in
+  "${HOME}/Desktop/"* | "${HOME}/Documents/"* | "${HOME}/Downloads/"*)
+    echo "launchd cannot reliably access macOS protected folders (Desktop/Documents/Downloads)." >&2
+    echo "Move this project to a non-protected path (e.g. ~/code/saju) and run install again." >&2
+    exit 1
+    ;;
+esac
 
 mkdir -p "${LAUNCH_AGENTS_DIR}" "${LOG_DIR}"
 touch "${OUT_LOG}" "${ERR_LOG}"
@@ -23,15 +37,19 @@ cat > "${PLIST_PATH}" <<EOF
 
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/zsh</string>
-    <string>-lc</string>
-    <string>cd "${ROOT_DIR}" &amp;&amp; /usr/bin/env npm run worker:once</string>
+    <string>${NODE_BIN}</string>
+    <string>--env-file=.env.local</string>
+    <string>scripts/codex-worker.mjs</string>
+    <string>--once</string>
+    <string>--max=3</string>
   </array>
 
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>${HOME}</string>
   </dict>
 
   <key>WorkingDirectory</key>
