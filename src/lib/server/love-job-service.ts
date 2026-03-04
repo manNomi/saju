@@ -1,35 +1,36 @@
 import { nanoid } from "nanoid";
 import { buildLoveResult } from "@/lib/love-result";
-import {
-  LOVE_PRICE_KRW,
-  type LoveJob,
-  type LoveJobInput,
-  type LoveJobPublic,
-} from "@/lib/love-job-types";
+import type { LoveJob, LoveJobInput, LoveJobPublic, LoveJobResult } from "@/lib/love-job-types";
 import {
   createLoveJob,
   findProcessableLoveJobs,
   getLoveJobById,
   updateLoveJob,
 } from "@/lib/server/firestore-repo";
+import { sendLoveResultEmail } from "@/lib/server/email";
 import { hashToken, verifyToken } from "@/lib/server/hash";
-
-function buildOrderId() {
-  return `saju_${Date.now()}_${nanoid(8)}`;
-}
 
 function defaultInput(input: LoveJobInput): LoveJobInput {
   return {
     ...input,
     name: input.name?.trim() ?? "",
+    email: input.email?.trim().toLowerCase() ?? "",
     birthPlace: input.birthPlace?.trim() || "대한민국",
     birthTime: input.birthTime?.trim() || "",
   };
 }
 
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export function validateLoveInput(input: LoveJobInput) {
   if (!input.birthDate) {
     throw new Error("birth_date_required");
+  }
+
+  if (!isValidEmail(input.email)) {
+    throw new Error("email_invalid");
   }
 
   if (input.gender !== "female" && input.gender !== "male") {
@@ -40,7 +41,12 @@ export function validateLoveInput(input: LoveJobInput) {
     throw new Error("calendar_type_invalid");
   }
 
-  if (input.birthDate.length > 20 || input.birthTime.length > 10 || input.birthPlace.length > 120) {
+  if (
+    input.birthDate.length > 20 ||
+    input.birthTime.length > 10 ||
+    input.birthPlace.length > 120 ||
+    input.email.length > 200
+  ) {
     throw new Error("input_length_invalid");
   }
 }
@@ -49,22 +55,15 @@ export function sanitizeLoveJob(job: LoveJob): LoveJobPublic {
   return {
     id: job.id,
     status: job.status,
-    paymentStatus: job.paymentStatus,
     input: job.input,
     result: job.result,
     error: job.error,
-    payment: {
-      provider: job.payment.provider,
-      orderId: job.payment.orderId,
-      amount: job.payment.amount,
-      currency: job.payment.currency,
-      paidAt: job.payment.paidAt,
-      confirmedAt: job.payment.confirmedAt,
-    },
+    email: job.email,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     processingStartedAt: job.processingStartedAt,
     processingCompletedAt: job.processingCompletedAt,
+    retryCount: job.retryCount,
   };
 }
 
@@ -82,25 +81,24 @@ export async function createLoveJobWithToken(payload: {
 
   const job: LoveJob = {
     id,
-    status: "awaiting_payment",
-    paymentStatus: "unpaid",
+    status: "queued",
     input: normalizedInput,
     result: null,
     error: null,
-    payment: {
-      provider: "toss",
-      orderId: buildOrderId(),
-      amount: LOVE_PRICE_KRW,
-      currency: "KRW",
-      paymentKey: null,
-      paidAt: null,
-      confirmedAt: null,
+    email: {
+      to: normalizedInput.email,
+      provider: process.env.RESEND_API_KEY ? "resend" : "console",
+      messageId: null,
+      sent: false,
+      sentAt: null,
+      error: null,
     },
     accessTokenHash: hashToken(accessToken),
     createdAt: now,
     updatedAt: now,
     processingStartedAt: null,
     processingCompletedAt: null,
+    retryCount: 0,
     requestMeta: {
       ip: payload.ip,
       ua: payload.ua,
@@ -126,44 +124,10 @@ export async function getAuthorizedLoveJob(jobId: string, accessToken: string) {
   return job;
 }
 
-export async function markPaymentAsPaid(payload: {
-  jobId: string;
-  accessToken: string;
-  paymentKey: string;
-}) {
-  const job = await getAuthorizedLoveJob(payload.jobId, payload.accessToken);
-  if (!job) {
-    throw new Error("job_not_found");
-  }
-
-  if (job.paymentStatus === "paid") {
-    return sanitizeLoveJob(job);
-  }
-
-  const now = Date.now();
-
-  await updateLoveJob(job.id, {
-    paymentStatus: "paid",
-    status: "pending",
-    updatedAt: now,
-    payment: {
-      ...job.payment,
-      paymentKey: payload.paymentKey,
-      paidAt: now,
-      confirmedAt: now,
-    },
-    error: null,
-  });
-
-  const updated = await getLoveJobById(job.id);
-  if (!updated) throw new Error("job_not_found_after_update");
-  return sanitizeLoveJob(updated);
-}
-
 export async function processLoveJob(jobId: string) {
   const job = await getLoveJobById(jobId);
   if (!job) return null;
-  if (job.status !== "pending" || job.paymentStatus !== "paid") {
+  if (job.status !== "queued") {
     return sanitizeLoveJob(job);
   }
 
@@ -173,10 +137,20 @@ export async function processLoveJob(jobId: string) {
     status: "processing",
     processingStartedAt: now,
     updatedAt: now,
+    error: null,
   });
 
+  let result: LoveJobResult | null = null;
+
   try {
-    const result = buildLoveResult(job.input);
+    result = buildLoveResult(job.input);
+
+    const emailResult = await sendLoveResultEmail({
+      to: job.input.email,
+      name: job.input.name,
+      requestId: job.id,
+      result,
+    });
 
     await updateLoveJob(job.id, {
       status: "completed",
@@ -184,13 +158,30 @@ export async function processLoveJob(jobId: string) {
       updatedAt: Date.now(),
       processingCompletedAt: Date.now(),
       error: null,
+      email: {
+        ...job.email,
+        provider: emailResult.provider,
+        messageId: emailResult.messageId,
+        sent: true,
+        sentAt: Date.now(),
+        error: null,
+      },
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "analysis_or_email_failed";
+
     await updateLoveJob(job.id, {
       status: "failed",
       updatedAt: Date.now(),
       processingCompletedAt: Date.now(),
-      error: error instanceof Error ? error.message : "analysis_failed",
+      error: message,
+      result,
+      retryCount: (job.retryCount ?? 0) + 1,
+      email: {
+        ...job.email,
+        sent: false,
+        error: message,
+      },
     });
   }
 

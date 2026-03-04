@@ -12,19 +12,15 @@ import {
   setActiveLoveJob,
 } from "@/lib/love-client-storage";
 import {
-  confirmLovePaymentRequest,
   createLoveJobRequest,
   getLoveJobRequest,
   logClientEvent,
   triggerJobProcessorRequest,
 } from "@/lib/love-api-client";
-import { LOVE_PRICE_KRW, type LoveJobInput, type LoveJobPublic, type LoveJobResult } from "@/lib/love-job-types";
+import { type LoveJobInput, type LoveJobPublic, type LoveJobResult } from "@/lib/love-job-types";
 
 declare global {
   interface Window {
-    TossPayments?: (clientKey: string) => {
-      requestPayment: (method: string, payload: Record<string, unknown>) => Promise<void>;
-    };
     turnstile?: {
       render: (selector: string | HTMLElement, options: Record<string, unknown>) => string;
       reset: (widgetId?: string) => void;
@@ -32,13 +28,14 @@ declare global {
   }
 }
 
-type Step = "landing" | "input" | "payment" | "pending" | "result";
+type Step = "landing" | "input" | "pending" | "result";
 
 type SajuInput = LoveJobInput;
 type ResultPayload = LoveJobResult;
 
 const DEFAULT_INPUT: SajuInput = {
   name: "",
+  email: "",
   gender: "female",
   calendarType: "solar",
   birthDate: "",
@@ -48,8 +45,6 @@ const DEFAULT_INPUT: SajuInput = {
 
 const cardClassName =
   "rounded-3xl border border-seed-stroke-subtle bg-seed-bg-floating p-5 shadow-card";
-
-const TURNSTILE_CONTAINER_ID = "turnstile-widget";
 
 function CarrotBuddy({ label }: { label: string }) {
   return (
@@ -96,34 +91,10 @@ function parseJobFromUrl() {
   return { rid, token };
 }
 
-function parsePaymentCallbackFromUrl() {
-  if (typeof window === "undefined") return null;
-
-  const url = new URL(window.location.href);
-  const mode = url.searchParams.get("payment");
-
-  if (mode !== "success" && mode !== "fail") return null;
-
-  return {
-    mode,
-    jobId: url.searchParams.get("jobId")?.trim() ?? "",
-    accessToken: url.searchParams.get("token")?.trim() ?? "",
-    paymentKey: url.searchParams.get("paymentKey")?.trim() ?? "",
-    orderId: url.searchParams.get("orderId")?.trim() ?? "",
-    amount: Number(url.searchParams.get("amount") ?? 0),
-    code: url.searchParams.get("code")?.trim() ?? "",
-    message: url.searchParams.get("message")?.trim() ?? "",
-  };
-}
-
 function syncJobToUrl(jobId: string | null, accessToken: string | null) {
   if (typeof window === "undefined") return;
 
   const url = new URL(window.location.href);
-
-  ["payment", "paymentKey", "orderId", "amount", "code", "message", "jobId"].forEach((key) => {
-    url.searchParams.delete(key);
-  });
 
   if (jobId && accessToken) {
     url.searchParams.set("rid", jobId);
@@ -134,20 +105,6 @@ function syncJobToUrl(jobId: string | null, accessToken: string | null) {
   }
 
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-}
-
-async function loadTossScript() {
-  if (typeof window === "undefined") return;
-  if (window.TossPayments) return;
-
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://js.tosspayments.com/v1/payment";
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("toss_sdk_load_failed"));
-    document.body.appendChild(script);
-  });
 }
 
 function legalLinkClass() {
@@ -165,81 +122,43 @@ export default function LoveFortuneApp() {
   const [lookupToken, setLookupToken] = useState("");
   const [lookupError, setLookupError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [isPaying, setIsPaying] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
 
   const customerName = useMemo(() => form.name || "고객님", [form.name]);
+  const localProcessAssist = process.env.NEXT_PUBLIC_LOCAL_PROCESS_ASSIST === "true";
 
-  const applyJobState = useCallback(
-    (nextJob: LoveJobPublic, token: string) => {
-      setJob(nextJob);
-      setLookupId(nextJob.id);
-      setLookupToken(token);
-      setAccessToken(token);
-      setForm(nextJob.input);
-      setActiveLoveJob(nextJob.id, token);
-      syncJobToUrl(nextJob.id, token);
+  const applyJobState = useCallback((nextJob: LoveJobPublic, token: string) => {
+    setJob(nextJob);
+    setLookupId(nextJob.id);
+    setLookupToken(token);
+    setAccessToken(token);
+    setForm(nextJob.input);
+    setActiveLoveJob(nextJob.id, token);
+    syncJobToUrl(nextJob.id, token);
 
-      if (nextJob.status === "completed" && nextJob.result) {
-        setResult(nextJob.result);
-        setStep("result");
-        setError("");
-        return;
-      }
+    if (nextJob.status === "completed" && nextJob.result) {
+      setResult(nextJob.result);
+      setStep("result");
+      setError("");
+      return;
+    }
 
-      if (nextJob.status === "awaiting_payment") {
-        setResult(null);
-        setStep("payment");
-        setError("");
-        return;
-      }
-
-      if (nextJob.status === "pending" || nextJob.status === "processing") {
-        setResult(null);
-        setStep("pending");
-        setError("");
-        return;
-      }
-
-      setResult(null);
+    if (nextJob.status === "failed") {
+      setResult(nextJob.result);
       setStep("input");
-      setError(nextJob.error ?? "분석 처리 중 오류가 발생했어요. 다시 요청해 주세요.");
-    },
-    [],
-  );
+      setError(nextJob.error ?? "분석 작업이 실패했어요. 다시 요청해 주세요.");
+      return;
+    }
+
+    setResult(null);
+    setStep("pending");
+    setError("");
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     const bootstrap = async () => {
-      const callback = parsePaymentCallbackFromUrl();
-      if (callback && callback.jobId && callback.accessToken) {
-        if (callback.mode === "fail") {
-          setError(
-            callback.message ? `결제가 취소되었어요: ${callback.message}` : "결제가 취소되었어요.",
-          );
-        } else {
-          try {
-            const confirmed = await confirmLovePaymentRequest({
-              jobId: callback.jobId,
-              accessToken: callback.accessToken,
-              paymentKey: callback.paymentKey,
-              orderId: callback.orderId,
-              amount: callback.amount,
-            });
-
-            if (!cancelled) {
-              await logClientEvent({ event: "payment_confirm_callback", jobId: callback.jobId });
-              applyJobState(confirmed.job, callback.accessToken);
-            }
-          } catch (e) {
-            if (!cancelled) {
-              setError(e instanceof Error ? e.message : "결제 확인에 실패했어요.");
-            }
-          }
-        }
-      }
-
       const fromUrl = parseJobFromUrl();
       const active = getActiveLoveJob();
       const target = fromUrl
@@ -247,12 +166,12 @@ export default function LoveFortuneApp() {
         : active
           ? { jobId: active.jobId, token: active.accessToken }
           : null;
+
       if (!target || cancelled) return;
 
       try {
         const loaded = await getLoveJobRequest(target.jobId, target.token);
         if (cancelled) return;
-
         applyJobState(loaded.job, target.token);
       } catch {
         if (!cancelled) {
@@ -277,7 +196,7 @@ export default function LoveFortuneApp() {
     const render = () => {
       if (!window.turnstile) return;
 
-      window.turnstile.render(`#${TURNSTILE_CONTAINER_ID}`, {
+      window.turnstile.render("#turnstile-widget", {
         sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
         callback: (token: string) => setCaptchaToken(token),
         "error-callback": () => setCaptchaToken(""),
@@ -307,10 +226,12 @@ export default function LoveFortuneApp() {
     let cancelled = false;
 
     const tick = async () => {
-      try {
-        await triggerJobProcessorRequest();
-      } catch {
-        // no-op: processor secret mode or transient network issue
+      if (localProcessAssist) {
+        try {
+          await triggerJobProcessorRequest();
+        } catch {
+          // best-effort local assist
+        }
       }
 
       try {
@@ -319,7 +240,7 @@ export default function LoveFortuneApp() {
         applyJobState(loaded.job, accessToken);
       } catch {
         if (!cancelled) {
-          setError("분석 상태 조회에 실패했어요. 잠시 후 다시 시도해 주세요.");
+          setError("상태 조회에 실패했어요. 잠시 후 다시 시도해 주세요.");
         }
       }
     };
@@ -327,13 +248,13 @@ export default function LoveFortuneApp() {
     void tick();
     const timer = window.setInterval(() => {
       void tick();
-    }, 1200);
+    }, 3000);
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [step, job, accessToken, applyJobState]);
+  }, [step, job, accessToken, applyJobState, localProcessAssist]);
 
   const updateField = <K extends keyof SajuInput>(key: K, value: SajuInput[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -345,13 +266,17 @@ export default function LoveFortuneApp() {
       return;
     }
 
+    if (!form.email) {
+      setError("결과를 받을 이메일을 입력해 주세요.");
+      return;
+    }
+
     setError("");
 
     try {
       const created = await createLoveJobRequest(form, captchaToken || undefined);
       await logClientEvent({ event: "job_submit", jobId: created.job.id });
       applyJobState(created.job, created.accessToken);
-      setStep("payment");
     } catch (e) {
       setError(e instanceof Error ? e.message : "요청 생성에 실패했어요.");
     }
@@ -381,45 +306,6 @@ export default function LoveFortuneApp() {
     }
   };
 
-  const startTossPayment = async () => {
-    if (!job || !accessToken) return;
-
-    const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
-    if (!clientKey) {
-      setError("토스 결제 설정이 누락되었어요. 운영자에게 문의해 주세요.");
-      return;
-    }
-
-    setIsPaying(true);
-    setError("");
-
-    try {
-      await loadTossScript();
-      if (!window.TossPayments) {
-        throw new Error("결제 SDK를 불러오지 못했어요.");
-      }
-
-      const toss = window.TossPayments(clientKey);
-      const origin = window.location.origin;
-      const successUrl =
-        `${origin}/?payment=success&jobId=${encodeURIComponent(job.id)}&token=${encodeURIComponent(accessToken)}`;
-      const failUrl =
-        `${origin}/?payment=fail&jobId=${encodeURIComponent(job.id)}&token=${encodeURIComponent(accessToken)}`;
-
-      await toss.requestPayment("카드", {
-        amount: job.payment.amount,
-        orderId: job.payment.orderId,
-        orderName: "490원 연애운 리포트",
-        customerName: form.name || "고객",
-        successUrl,
-        failUrl,
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "결제 창 실행에 실패했어요.");
-      setIsPaying(false);
-    }
-  };
-
   const copyResultLink = async () => {
     if (!job || !accessToken || typeof window === "undefined" || !navigator?.clipboard) return;
 
@@ -439,10 +325,10 @@ export default function LoveFortuneApp() {
               as="h1"
               className="mt-1 block text-[30px] font-black leading-[1.18] tracking-[-0.02em] text-seed-fg-primary"
             >
-              490원 연애운 보기
+              연애운 사주 자동 분석
             </Text>
             <Text as="p" className="mt-2.5 block text-[15px] leading-[1.5] text-seed-fg-muted">
-              논문·규칙 기반 분석 결과를 490원에 제공해요. 결제 금액은 서버 운영비로만 사용합니다.
+              입력 정보는 Firestore에 등록되고, Codex Automation이 분석 후 이메일로 결과를 보내요.
             </Text>
             <ActionButton
               variant="brandSolid"
@@ -450,7 +336,7 @@ export default function LoveFortuneApp() {
               className="mt-4 w-full"
               onClick={() => setStep("input")}
             >
-              사주 보기 시작하기
+              사주 분석 시작하기
             </ActionButton>
 
             <div className="mt-5 rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill p-3">
@@ -500,7 +386,7 @@ export default function LoveFortuneApp() {
           <ScreenFrame>
             <section className={cardClassName}>
               <Text as="p" className="mb-4 block text-sm leading-[1.45] text-seed-fg-muted">
-                입력 후 결제 완료 시 서버에서 분석을 시작해요.
+                입력 후 자동화 작업이 실행되며, 결과를 이메일로 발송합니다.
               </Text>
 
               <label className="mb-2 mt-3 block text-[13px] font-bold text-seed-fg-primary">이름 (선택)</label>
@@ -509,6 +395,16 @@ export default function LoveFortuneApp() {
                   value={form.name}
                   onChange={(e) => updateField("name", e.target.value)}
                   placeholder="홍길동"
+                />
+              </TextField.Root>
+
+              <label className="mb-2 mt-3 block text-[13px] font-bold text-seed-fg-primary">이메일</label>
+              <TextField.Root className="bg-seed-bg-default">
+                <TextField.Input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => updateField("email", e.target.value)}
+                  placeholder="you@example.com"
                 />
               </TextField.Root>
 
@@ -565,51 +461,13 @@ export default function LoveFortuneApp() {
               </TextField.Root>
 
               {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ? (
-                <div id={TURNSTILE_CONTAINER_ID} className="mt-3 min-h-[64px]" />
+                <div id="turnstile-widget" className="mt-3 min-h-[64px]" />
               ) : null}
 
               {error ? <p className="mt-3 text-[13px] text-[var(--seed-color-fg-critical)]">{error}</p> : null}
 
               <ActionButton variant="brandSolid" size="large" className="mt-4 w-full" onClick={submit}>
-                {LOVE_PRICE_KRW.toLocaleString()}원 결제 진행하기
-              </ActionButton>
-            </section>
-          </ScreenFrame>
-        </>
-      )}
-
-      {step === "payment" && job && (
-        <>
-          <TopBar title="결제" onBack={() => setStep("input")} />
-          <ScreenFrame>
-            <section className={`${cardClassName} text-center`}>
-              <CarrotBuddy label="결제 대기 캐릭터" />
-              <Text as="h2" className="mt-1 block text-[24px] font-black leading-[1.25] text-seed-fg-primary">
-                결제를 완료해 주세요
-              </Text>
-              <Text as="p" className="mt-2 block text-sm leading-[1.45] text-seed-fg-muted">
-                결제 성공 후 서버에서 자동 분석이 시작됩니다.
-              </Text>
-
-              <div className="mt-3 rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-3 text-left text-xs text-seed-fg-muted">
-                <p>
-                  <b className="text-seed-fg-primary">금액:</b> {job.payment.amount.toLocaleString()}원
-                </p>
-                <p className="mt-1 break-all">
-                  <b className="text-seed-fg-primary">주문번호:</b> {job.payment.orderId}
-                </p>
-              </div>
-
-              {error ? <p className="mt-3 text-[13px] text-[var(--seed-color-fg-critical)]">{error}</p> : null}
-
-              <ActionButton
-                variant="brandSolid"
-                size="large"
-                className="mt-4 w-full"
-                onClick={startTossPayment}
-                disabled={isPaying}
-              >
-                토스 결제창 열기
+                요청 등록하기
               </ActionButton>
             </section>
           </ScreenFrame>
@@ -618,15 +476,15 @@ export default function LoveFortuneApp() {
 
       {step === "pending" && (
         <>
-          <TopBar title="분석 중" onBack={() => setStep("payment")} />
+          <TopBar title="분석 대기" onBack={() => setStep("input")} />
           <ScreenFrame>
             <section className={`${cardClassName} text-center`}>
               <CarrotBuddy label="분석 진행 캐릭터" />
               <Text as="h2" className="mt-1 block text-[24px] font-black leading-[1.25] text-seed-fg-primary">
-                연애운을 읽는 중이에요
+                자동 분석을 진행 중이에요
               </Text>
               <Text as="p" className="mt-2 block text-sm leading-[1.45] text-seed-fg-muted">
-                결제 완료가 확인되어 분석 작업을 처리 중입니다.
+                Codex Automation이 큐 작업을 처리하면 이메일과 화면에서 결과를 확인할 수 있어요.
               </Text>
               {job ? (
                 <p className="mt-2 text-xs text-seed-fg-subtle">
@@ -659,6 +517,11 @@ export default function LoveFortuneApp() {
                   {copied ? "복사됨" : "링크 복사"}
                 </ActionButton>
               </div>
+
+              <p className="mt-2 text-xs text-seed-fg-muted">
+                이메일 발송: {job.email.sent ? "완료" : "대기/실패"}
+                {job.email.error ? ` (${job.email.error})` : ""}
+              </p>
 
               <div className="mt-4 grid grid-cols-3 gap-2.5">
                 <article className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-2 py-3 text-center">

@@ -9,8 +9,8 @@ const notoSansKR = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "490원 연애운 보기",
-  description: "논문·사주 자료를 기반으로 서버비만 받고 제공하는 연애운 리포트",
+  title: "사주 자동 분석",
+  description: "입력 정보를 기반으로 자동 분석 후 이메일로 결과를 발송합니다.",
 };
 
 export const viewport: Viewport = {

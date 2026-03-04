@@ -171,8 +171,7 @@ export async function findProcessableLoveJobs(limitCount: number) {
   if (backend.mode === "admin") {
     const snap = await backend.db
       .collection(LOVE_JOBS_COLLECTION)
-      .where("status", "==", "pending")
-      .where("paymentStatus", "==", "paid")
+      .where("status", "==", "queued")
       .limit(limitCount)
       .get();
 
@@ -181,8 +180,7 @@ export async function findProcessableLoveJobs(limitCount: number) {
 
   const q = query(
     collection(backend.db, LOVE_JOBS_COLLECTION),
-    where("status", "==", "pending"),
-    where("paymentStatus", "==", "paid"),
+    where("status", "==", "queued"),
     limit(limitCount),
   );
 

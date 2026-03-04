@@ -20,14 +20,15 @@ async function main() {
   log(`baseUrl=${baseUrl}`);
 
   const health = await requestJson("/api/health", { method: "GET" });
-  log(`health ok (firestoreMode=${health.firestoreMode}, paymentMode=${health.paymentMode})`);
+  log(`health ok (firestoreMode=${health.firestoreMode}, emailMode=${health.emailMode})`);
 
-  const created = await requestJson("/api/jobs", {
+  const created = await requestJson("/api/saju-requests", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       input: {
         name: "smoke",
+        email: "smoke@example.com",
         gender: "female",
         calendarType: "solar",
         birthDate: "1992-05-12",
@@ -37,19 +38,39 @@ async function main() {
     }),
   });
 
-  const { job, accessToken } = created;
-  log(`job created id=${job.id}`);
+  const request = created.request;
+  const accessToken = created.accessToken;
+  log(`request created id=${request.id}`);
 
-  const loaded = await requestJson(
-    `/api/jobs/${encodeURIComponent(job.id)}?token=${encodeURIComponent(accessToken)}`,
+  await requestJson("/api/saju-requests/process", { method: "POST" });
+  log("processor triggered");
+
+  let loaded = await requestJson(
+    `/api/saju-requests/${encodeURIComponent(request.id)}?token=${encodeURIComponent(accessToken)}`,
     { method: "GET", cache: "no-store" },
   );
 
-  if (loaded.job?.status !== "awaiting_payment") {
-    throw new Error(`unexpected status: ${loaded.job?.status ?? "unknown"}`);
+  if (loaded.request?.status !== "completed") {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    loaded = await requestJson(
+      `/api/saju-requests/${encodeURIComponent(request.id)}?token=${encodeURIComponent(accessToken)}`,
+      { method: "GET", cache: "no-store" },
+    );
   }
 
-  log("pre-payment flow OK (awaiting_payment)");
+  if (loaded.request?.status !== "completed") {
+    throw new Error(`unexpected status: ${loaded.request?.status ?? "unknown"}`);
+  }
+
+  if (!loaded.request?.result) {
+    throw new Error("result_missing");
+  }
+
+  if (!loaded.request?.email?.sent) {
+    throw new Error(`email_not_sent(${loaded.request?.email?.error ?? "unknown"})`);
+  }
+
+  log(`result ready loveScore=${loaded.request.result.loveScore}`);
   log("OK");
 }
 

@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getAuthorizedLoveJob,
-  sanitizeLoveJob,
-} from "@/lib/server/love-job-service";
+import { getAuthorizedLoveJob, sanitizeLoveJob } from "@/lib/server/love-job-service";
 import { logEvent } from "@/lib/server/monitoring";
 
 export async function GET(
@@ -24,14 +21,14 @@ export async function GET(
       return NextResponse.json({ error: "요청 정보를 찾지 못했어요." }, { status: 404 });
     }
 
-    return NextResponse.json({ job: sanitizeLoveJob(job) });
+    return NextResponse.json({ request: sanitizeLoveJob(job) });
   } catch (error) {
     if (error instanceof Error && error.message === "job_access_denied") {
       return NextResponse.json({ error: "조회 권한이 없어요. 요청 ID/조회 키를 확인해 주세요." }, { status: 403 });
     }
 
-    logEvent("error", "job_get_failed", {
-      jobId: id,
+    logEvent("error", "saju_request_get_failed", {
+      requestId: id,
       message: error instanceof Error ? error.message : "unknown",
     });
 

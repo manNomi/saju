@@ -17,7 +17,7 @@ function getIp(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const ip = getIp(request);
   const ua = request.headers.get("user-agent") ?? "unknown";
-  const rate = consumeRateLimit(`create:${ip}`, 10, 60_000);
+  const rate = consumeRateLimit(`saju:create:${ip}`, 10, 60_000);
 
   if (!rate.allowed) {
     return NextResponse.json(
@@ -47,18 +47,19 @@ export async function POST(request: NextRequest) {
       ua,
     });
 
-    logEvent("info", "job_created", {
-      jobId: created.job.id,
+    logEvent("info", "saju_request_created", {
+      requestId: created.job.id,
       backendMode: getFirestoreBackendMode(),
       captchaSkipped: captcha.skipped,
     });
 
     return NextResponse.json({
-      job: created.job,
+      requestId: created.job.id,
       accessToken: created.accessToken,
+      request: created.job,
     });
   } catch (error) {
-    logEvent("error", "job_create_failed", {
+    logEvent("error", "saju_request_create_failed", {
       message: error instanceof Error ? error.message : "unknown",
     });
 

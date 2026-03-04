@@ -1,20 +1,20 @@
-# saju - 490원 연애운 웹앱
+# saju - 연애운 자동 분석 웹앱
 
-모바일 웹뷰 기준으로 동작하는 Next.js 앱입니다.
+모바일 웹뷰 기준 Next.js 앱입니다.
 
 ## 핵심 플로우
 
-1. 사용자가 사주 입력
-2. 토스 결제 진행
-3. 결제 확인 후 서버에서 분석 실행
-4. 결과를 `요청 ID + 조회 키(token)`로 재조회
+1. 사용자가 사주 + 이메일 입력
+2. 서버 API가 Firestore(`sajuRequests`)에 `queued` 상태로 저장
+3. Codex Automation(또는 크론)이 `/api/saju-requests/process` 호출
+4. 분석 완료 후 이메일 발송 + 결과 조회 가능
 
 ## 보안 모델
 
-- 클라이언트는 Firestore를 직접 읽지 않습니다.
-- 모든 접근은 Next API를 경유합니다.
-- 결과 조회는 `jobId + accessToken`이 모두 필요합니다.
-- `accessToken`은 서버에 해시로 저장됩니다.
+- Firestore는 클라이언트 직접 접근 금지
+- 모든 CRUD는 Next API 경유
+- 결과 조회는 `requestId + accessToken` 필요
+- `accessToken`은 서버에 해시 저장
 
 ## 환경 변수
 
@@ -36,9 +36,10 @@ FIREBASE_ADMIN_PRIVATE_KEY=
 # Admin 미설정 시 fallback (개발에서만 권장)
 FIREBASE_SERVER_FALLBACK_PUBLIC=true
 
-# Toss 결제
-NEXT_PUBLIC_TOSS_CLIENT_KEY=
-TOSS_SECRET_KEY=
+# Email provider
+EMAIL_PROVIDER=console
+RESEND_API_KEY=
+EMAIL_FROM=
 
 # Abuse 방지
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=
@@ -46,7 +47,21 @@ TURNSTILE_SECRET_KEY=
 
 # 배치 처리 endpoint 보호
 JOB_PROCESSOR_SECRET=
+
+# 로컬 대기화면에서 처리 보조 (개발용)
+NEXT_PUBLIC_LOCAL_PROCESS_ASSIST=false
 ```
+
+## 주요 API
+
+- `POST /api/saju-requests`
+- `GET /api/saju-requests/:id?token=...`
+- `POST /api/saju-requests/process`
+
+호환용 레거시 API도 유지됨:
+- `POST /api/jobs`
+- `GET /api/jobs/:id`
+- `POST /api/jobs/process`
 
 ## Firestore Rules
 
@@ -56,10 +71,7 @@ JOB_PROCESSOR_SECRET=
 firebase deploy --only firestore:rules
 ```
 
-현재 rules는 클라이언트 직접 접근을 차단합니다. 서버 API + Admin SDK 사용을 전제로 합니다.
-
-주의: `NODE_ENV=production`에서는 `FIREBASE_SERVER_FALLBACK_PUBLIC=true`를 명시하지 않으면
-public SDK fallback이 비활성화됩니다. 운영에서는 Admin 자격증명 사용을 권장합니다.
+현재 rules는 클라이언트 직접 접근을 차단하며, 서버 API + Admin SDK 사용을 전제로 합니다.
 
 ## 실행
 
@@ -68,19 +80,12 @@ npm install
 npm run dev
 ```
 
-## 분석 배치 처리 (자동화/크론)
-
-분석 대기 작업을 주기적으로 처리하려면:
-
-- Endpoint: `POST /api/jobs/process`
-- Header: `x-job-processor-secret: <JOB_PROCESSOR_SECRET>`
-
-예시(cron 1분):
+## 자동화/크론 예시
 
 ```bash
 curl -X POST \
   -H "x-job-processor-secret: $JOB_PROCESSOR_SECRET" \
-  https://<your-domain>/api/jobs/process
+  https://<your-domain>/api/saju-requests/process
 ```
 
 ## 점검
@@ -88,4 +93,9 @@ curl -X POST \
 ```bash
 npm run lint
 npm run build
+npm run app:smoke
 ```
+
+## 아키텍처 문서
+
+- [Automation Architecture](/Users/manwook-han/Desktop/code/saju/docs/AUTOMATION_ARCHITECTURE.md)

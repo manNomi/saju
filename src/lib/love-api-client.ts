@@ -3,15 +3,6 @@ import type { LoveJobInput, LoveJobPublic } from "@/lib/love-job-types";
 export type CreateLoveJobResponse = {
   job: LoveJobPublic;
   accessToken: string;
-  checkout: {
-    provider: "toss";
-    amount: number;
-    orderId: string;
-  };
-};
-
-export type ConfirmLovePaymentResponse = {
-  job: LoveJobPublic;
 };
 
 async function parseJson(response: Response) {
@@ -53,24 +44,6 @@ export async function getLoveJobRequest(jobId: string, accessToken: string) {
   );
 
   return (await parseJson(response)) as { job: LoveJobPublic };
-}
-
-export async function confirmLovePaymentRequest(payload: {
-  jobId: string;
-  accessToken: string;
-  paymentKey?: string;
-  orderId: string;
-  amount: number;
-}) {
-  const response = await fetch("/api/payments/confirm", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return (await parseJson(response)) as ConfirmLovePaymentResponse;
 }
 
 export async function triggerJobProcessorRequest() {

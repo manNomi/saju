@@ -1,5 +1,6 @@
 export type LoveJobInput = {
   name: string;
+  email: string;
   gender: "male" | "female";
   calendarType: "solar" | "lunar";
   birthDate: string;
@@ -23,43 +24,36 @@ export type LoveJobResult = {
   modelVersion: string;
 };
 
-export type LoveJobStatus = "awaiting_payment" | "pending" | "processing" | "completed" | "failed";
-export type PaymentStatus = "unpaid" | "paid" | "failed";
+export type LoveJobStatus = "queued" | "processing" | "completed" | "failed";
 
-export type LovePaymentInfo = {
-  provider: "toss";
-  orderId: string;
-  amount: number;
-  currency: "KRW";
-  paymentKey: string | null;
-  paidAt: number | null;
-  confirmedAt: number | null;
+export type LoveEmailInfo = {
+  to: string;
+  provider: "resend" | "console";
+  messageId: string | null;
+  sent: boolean;
+  sentAt: number | null;
+  error: string | null;
 };
-
-export type LovePaymentPublic = Omit<LovePaymentInfo, "paymentKey">;
 
 export type LoveJob = {
   id: string;
   status: LoveJobStatus;
-  paymentStatus: PaymentStatus;
   input: LoveJobInput;
   result: LoveJobResult | null;
   error: string | null;
-  payment: LovePaymentInfo;
+  email: LoveEmailInfo;
   accessTokenHash: string;
   createdAt: number;
   updatedAt: number;
   processingStartedAt: number | null;
   processingCompletedAt: number | null;
+  retryCount: number;
   requestMeta: {
     ip: string;
     ua: string;
   };
 };
 
-export type LoveJobPublic = Omit<LoveJob, "accessTokenHash" | "requestMeta" | "payment"> & {
-  payment: LovePaymentPublic;
-};
+export type LoveJobPublic = Omit<LoveJob, "accessTokenHash" | "requestMeta">;
 
-export const LOVE_PRICE_KRW = 490;
-export const LOVE_JOBS_COLLECTION = "loveJobs";
+export const LOVE_JOBS_COLLECTION = "sajuRequests";
