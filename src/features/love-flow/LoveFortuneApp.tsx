@@ -68,7 +68,7 @@ function TopBar({ title, onBack }: { title: string; onBack?: () => void }) {
 }
 
 function legalLinkClass() {
-  return "text-[11px] text-seed-fg-subtle underline underline-offset-2";
+  return "inline-flex items-center rounded-md px-2 py-1 text-[11px] text-seed-fg-subtle underline underline-offset-2";
 }
 
 export default function LoveFortuneApp() {
@@ -145,7 +145,7 @@ export default function LoveFortuneApp() {
             <div className="pointer-events-none absolute -bottom-10 -left-10 h-28 w-28 rounded-full bg-seed-bg-brand-weak/70" />
 
             <p className="inline-flex rounded-full border border-[var(--seed-color-stroke-brand)]/40 bg-seed-bg-brand-weak px-3 py-1 text-[12px] font-semibold text-[var(--seed-color-fg-brand)]">
-              490원 연애운 리포트
+              무료 연애운 리포트
             </p>
 
             <CarrotBuddy label="연애운 캐릭터" />
@@ -161,7 +161,7 @@ export default function LoveFortuneApp() {
             <Text as="p" className="mt-3 block text-[15px] leading-[1.55] text-seed-fg-muted">
               논문·명리 규칙 기반 리포트를 자동 생성해요.
               <br />
-              지금은 서버비 기준으로 490원만 받아요.
+              무료입니다 지금.
             </Text>
 
             <div className="mt-4 grid grid-cols-3 gap-2">
@@ -182,7 +182,7 @@ export default function LoveFortuneApp() {
               className="mt-5 w-full"
               onClick={() => setStep("input")}
             >
-              490원으로 시작하기
+              무료로 시작하기
             </ActionButton>
           </section>
 
