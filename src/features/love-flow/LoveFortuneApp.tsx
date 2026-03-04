@@ -7,8 +7,6 @@ import { ActionButton, Text, TextField } from "@seed-design/react";
 import {
   clearActiveLoveJob,
   getActiveLoveJob,
-  getJobToken,
-  saveJobToken,
   setActiveLoveJob,
 } from "@/lib/love-client-storage";
 import {
@@ -118,9 +116,6 @@ export default function LoveFortuneApp() {
   const [job, setJob] = useState<LoveJobPublic | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [result, setResult] = useState<ResultPayload | null>(null);
-  const [lookupId, setLookupId] = useState("");
-  const [lookupToken, setLookupToken] = useState("");
-  const [lookupError, setLookupError] = useState("");
   const [copied, setCopied] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
 
@@ -129,8 +124,6 @@ export default function LoveFortuneApp() {
 
   const applyJobState = useCallback((nextJob: LoveJobPublic, token: string) => {
     setJob(nextJob);
-    setLookupId(nextJob.id);
-    setLookupToken(token);
     setAccessToken(token);
     setForm(nextJob.input);
     setActiveLoveJob(nextJob.id, token);
@@ -282,30 +275,6 @@ export default function LoveFortuneApp() {
     }
   };
 
-  const loadById = async () => {
-    const normalized = lookupId.trim();
-    const normalizedToken = lookupToken.trim() || getJobToken(normalized) || "";
-
-    if (!normalized) {
-      setLookupError("요청 ID를 입력해 주세요.");
-      return;
-    }
-
-    if (!normalizedToken) {
-      setLookupError("조회 키를 입력해 주세요. (같은 브라우저라면 자동으로 채워져요)");
-      return;
-    }
-
-    try {
-      const loaded = await getLoveJobRequest(normalized, normalizedToken);
-      setLookupError("");
-      saveJobToken(normalized, normalizedToken);
-      applyJobState(loaded.job, normalizedToken);
-    } catch (e) {
-      setLookupError(e instanceof Error ? e.message : "해당 ID 결과를 찾지 못했어요.");
-    }
-  };
-
   const copyResultLink = async () => {
     if (!job || !accessToken || typeof window === "undefined" || !navigator?.clipboard) return;
 
@@ -362,32 +331,6 @@ export default function LoveFortuneApp() {
               onClick={() => setStep("input")}
             >
               490원으로 시작하기
-            </ActionButton>
-          </section>
-
-          <section className="mt-4 rounded-3xl border border-seed-stroke-subtle bg-seed-bg-floating p-4 shadow-card">
-            <p className="text-[13px] font-bold text-seed-fg-primary">요청 ID로 결과 이어보기</p>
-            <TextField.Root className="mt-2 bg-seed-bg-default">
-              <TextField.Input
-                aria-label="요청 ID"
-                placeholder="요청 ID"
-                value={lookupId}
-                onChange={(e) => setLookupId(e.target.value)}
-              />
-            </TextField.Root>
-            <TextField.Root className="mt-2 bg-seed-bg-default">
-              <TextField.Input
-                aria-label="조회 키"
-                placeholder="조회 키(선택, 같은 브라우저면 자동)"
-                value={lookupToken}
-                onChange={(e) => setLookupToken(e.target.value)}
-              />
-            </TextField.Root>
-            {lookupError ? (
-              <p className="mt-2 text-xs text-[var(--seed-color-fg-critical)]">{lookupError}</p>
-            ) : null}
-            <ActionButton variant="neutralWeak" size="medium" className="mt-2 w-full" onClick={loadById}>
-              결과 조회
             </ActionButton>
           </section>
 

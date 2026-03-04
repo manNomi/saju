@@ -11,6 +11,11 @@ const notoSansKR = Noto_Sans_KR({
 export const metadata: Metadata = {
   title: "사주 자동 분석",
   description: "입력 정보를 기반으로 자동 분석 후 이메일로 결과를 발송합니다.",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/favicon.ico" }],
+    shortcut: ["/favicon.ico"],
+    apple: [{ url: "/icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export const viewport: Viewport = {
