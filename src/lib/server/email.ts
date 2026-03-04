@@ -1,4 +1,5 @@
 import type { LoveJobResult } from "@/lib/love-job-types";
+import { createHash } from "node:crypto";
 
 type EmailSendPayload = {
   to: string;
@@ -11,6 +12,11 @@ type EmailSendResult = {
   provider: "resend" | "console";
   messageId: string | null;
 };
+
+function toAsciiIdempotencyKey(prefix: string, raw: string) {
+  const digest = createHash("sha256").update(raw).digest("hex");
+  return `${prefix}-${digest.slice(0, 40)}`;
+}
 
 function createEmailHtml(payload: EmailSendPayload) {
   const detailedSections = payload.result.detailedSections ?? [];
@@ -95,7 +101,7 @@ async function sendWithResend(payload: EmailSendPayload): Promise<EmailSendResul
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "Idempotency-Key": `love-job-${payload.requestId}`,
+      "Idempotency-Key": toAsciiIdempotencyKey("love-job", payload.requestId),
     },
     body: JSON.stringify({
       from,

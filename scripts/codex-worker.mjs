@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -504,6 +505,11 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function toAsciiIdempotencyKey(prefix, raw) {
+  const digest = createHash("sha256").update(String(raw ?? "")).digest("hex");
+  return `${prefix}-${digest.slice(0, 40)}`;
+}
+
 function ratioToPercent(ratio) {
   if (!Number.isFinite(ratio)) return 0;
   return Math.max(0, Math.min(100, Math.round(ratio * 100)));
@@ -789,7 +795,7 @@ async function sendResultEmail(job, result) {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "Idempotency-Key": `codex-worker-love-${job.id}`,
+      "Idempotency-Key": toAsciiIdempotencyKey("codex-worker-love", job.id),
     },
     body: JSON.stringify({
       from,
