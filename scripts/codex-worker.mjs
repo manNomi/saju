@@ -277,16 +277,95 @@ function assertLoveResultShape(result) {
   }
 }
 
+const PHRASING_REPLACEMENTS = [
+  [/분기당/g, "앞으로 3개월 동안"],
+  [/분기/g, "3개월"],
+  [/신규 만남 채널/g, "새로운 만남 자리"],
+  [/만남 채널/g, "만남 자리"],
+  [/채널/g, "방법"],
+  [/48시간 내/g, "이틀 안에"],
+  [/48시간 이내/g, "이틀 안에"],
+  [/24시간 내/g, "하루 안에"],
+  [/24시간 이내/g, "하루 안에"],
+  [/72시간 내/g, "사흘 안에"],
+  [/72시간 이내/g, "사흘 안에"],
+  [/고정하고/g, "정해서"],
+  [/액션아이템/g, "실천할 일"],
+  [/KPI/g, "기준"],
+  [/포트폴리오/g, "균형"],
+  [/파이프라인/g, "흐름"],
+];
+
+function normalizeKoreanPhrasing(text) {
+  let out = String(text ?? "");
+  for (const [pattern, replacement] of PHRASING_REPLACEMENTS) {
+    out = out.replace(pattern, replacement);
+  }
+  return out;
+}
+
+function normalizeLoveResultPhrasing(result) {
+  return {
+    ...result,
+    summary: normalizeKoreanPhrasing(result.summary),
+    highlight: normalizeKoreanPhrasing(result.highlight),
+    caution: normalizeKoreanPhrasing(result.caution),
+    timingHint: normalizeKoreanPhrasing(result.timingHint),
+    detailedReport: normalizeKoreanPhrasing(result.detailedReport),
+    detailedSections: Array.isArray(result.detailedSections)
+      ? result.detailedSections.map((section) => ({
+          ...section,
+          title: normalizeKoreanPhrasing(section.title),
+          body: normalizeKoreanPhrasing(section.body),
+        }))
+      : [],
+    yearlyGuidance: Array.isArray(result.yearlyGuidance)
+      ? result.yearlyGuidance.map((row) => ({
+          ...row,
+          focus: normalizeKoreanPhrasing(row.focus),
+        }))
+      : [],
+  };
+}
+
 function buildCodexPrompt(job) {
   const nowYear = new Date().getFullYear();
 
   return [
-    "너는 한국어 사주 연애/결혼운 전문 분석가다.",
-    "아래 입력값만 사용해서 매우 상세하고 실전적인 리포트를 작성하라.",
-    "반드시 JSON Schema를 100% 준수하고 JSON 외 텍스트를 출력하지 마라.",
-    "운세를 단정적으로 확정하지 말고 경향성과 실행 전략 중심으로 작성하라.",
-    "각 본문은 한국어로 자연스럽게 작성하고, 구체적 행동 가이드를 포함하라.",
-    `연도 가이드는 ${nowYear}년 ~ ${nowYear + 9}년 범위에서 작성하라.`,
+    "역할: 너는 한국어 연애 상담에 능한 사주 분석가다.",
+    "목표: 사용자가 읽기 쉽고 바로 행동할 수 있는 연애/결혼 리포트를 작성하라.",
+    "중요: 반드시 JSON Schema를 100% 준수하고 JSON 외 텍스트를 출력하지 마라.",
+    "",
+    "[문체 규칙]",
+    "- 상담사가 말하듯 따뜻하지만 단정한 한국어를 사용하라.",
+    "- 짧고 쉬운 문장 위주로 작성하라. 어려운 한자어/전문용어를 남발하지 마라.",
+    "- 추상적인 표현만 반복하지 말고, 구체적인 행동 제안(언제/무엇을/어떻게)을 넣어라.",
+    "- 단정적 예언은 금지하고, '경향 + 선택 가능한 대응' 형태로 설명하라.",
+    "- 명령조보다 제안형 문장(예: ~해보세요, ~가 좋아요)을 우선 사용하라.",
+    "",
+    "[금지 표현]",
+    "- 'AI가 분석한 결과', '데이터상', '모델 관점에서' 같은 메타 설명 금지.",
+    "- '절대', '무조건', '반드시 된다/망한다' 같은 극단적 확정 문장 금지.",
+    "- 같은 의미의 문장을 반복해 길이만 늘리는 표현 금지.",
+    "- 비즈니스 보고서 말투 금지: 분기, 채널, KPI, 포트폴리오, 파이프라인, 액션아이템.",
+    "- 기계적인 시간 표현 금지: 24시간/48시간/72시간 이내 같은 표현.",
+    "",
+    "[자연스러운 표현 강제]",
+    "- '분기' 대신 '앞으로 3개월'처럼 일상 한국어로 써라.",
+    "- '채널' 대신 '자리/모임/방법'처럼 자연어로 바꿔라.",
+    "- '48시간 이내' 대신 '이틀 안에'처럼 말하라.",
+    "- 숫자를 억지로 고정하지 말고, 필요한 경우에만 1~2회 수준으로 부드럽게 제안하라.",
+    "",
+    "[독해성 규칙]",
+    "- summary/highlight/caution/timingHint는 모바일에서 한 번에 읽히게 간결하게 작성하라.",
+    "- detailedSections 각 body는 첫 문장에서 핵심 결론을 먼저 말하고, 뒤에 이유와 행동 팁을 제시하라.",
+    "- yearlyGuidance.focus는 해당 연도에 실제로 실천할 행동 1~2개를 포함하라.",
+    `- 연도 가이드는 ${nowYear}년 ~ ${nowYear + 9}년 범위에서 작성하라.`,
+    "",
+    "[최종 자기 점검 후 출력]",
+    "1) 문장이 어색하게 AI 답변처럼 보이면 사람 말투로 다시 고쳐라.",
+    "2) 추상 표현만 있는 문장을 구체 행동 문장으로 치환하라.",
+    "3) JSON 스키마 누락/타입 오류가 없는지 확인하라.",
     "",
     "입력 데이터:",
     JSON.stringify(
@@ -401,7 +480,7 @@ async function runCodexReport(job, model, execTimeoutSec) {
     const raw = await readFile(outPath, "utf8");
     const parsed = parseJsonOutput(raw);
     assertLoveResultShape(parsed);
-    return parsed;
+    return normalizeLoveResultPhrasing(parsed);
   } finally {
     await rm(outPath, { force: true }).catch(() => {});
   }
