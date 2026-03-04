@@ -17,6 +17,7 @@ import {
   getFirestore as getClientFirestore,
   limit,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -152,6 +153,50 @@ export async function getLoveJobById(jobId: string): Promise<LoveJob | null> {
   const snap = await getDoc(doc(backend.db, LOVE_JOBS_COLLECTION, jobId));
   if (!snap.exists()) return null;
   return snap.data() as LoveJob;
+}
+
+export async function claimQueuedLoveJob(jobId: string, now: number): Promise<LoveJob | null> {
+  const backend = resolveBackend();
+
+  if (backend.mode === "admin") {
+    const ref = backend.db.collection(LOVE_JOBS_COLLECTION).doc(jobId);
+
+    return backend.db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return null;
+
+      const current = snap.data() as LoveJob;
+      if (current.status !== "queued") return null;
+
+      tx.update(ref, {
+        status: "processing",
+        processingStartedAt: now,
+        updatedAt: now,
+        error: null,
+      });
+
+      return current;
+    });
+  }
+
+  const ref = doc(backend.db, LOVE_JOBS_COLLECTION, jobId);
+
+  return runTransaction(backend.db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return null;
+
+    const current = snap.data() as LoveJob;
+    if (current.status !== "queued") return null;
+
+    tx.update(ref, {
+      status: "processing",
+      processingStartedAt: now,
+      updatedAt: now,
+      error: null,
+    });
+
+    return current;
+  });
 }
 
 export async function updateLoveJob(jobId: string, patch: Partial<LoveJob>) {

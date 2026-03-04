@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import { buildLoveResult } from "@/lib/love-result";
 import type { LoveJob, LoveJobInput, LoveJobPublic, LoveJobResult } from "@/lib/love-job-types";
 import {
+  claimQueuedLoveJob,
   createLoveJob,
   findProcessableLoveJobs,
   getLoveJobById,
@@ -125,22 +126,32 @@ export async function getAuthorizedLoveJob(jobId: string, accessToken: string) {
 }
 
 export async function processLoveJob(jobId: string) {
-  const job = await getLoveJobById(jobId);
-  if (!job) return null;
-  if (job.status !== "queued") {
-    return sanitizeLoveJob(job);
+  const now = Date.now();
+  const claimed = await claimQueuedLoveJob(jobId, now);
+
+  if (!claimed) {
+    const existing = await getLoveJobById(jobId);
+    return existing ? sanitizeLoveJob(existing) : null;
   }
 
-  const now = Date.now();
+  const job = claimed;
 
-  await updateLoveJob(job.id, {
-    status: "processing",
-    processingStartedAt: now,
-    updatedAt: now,
-    error: null,
-  });
+  // Defensive guard: if email is already marked sent, never send again.
+  if (job.email.sent) {
+    await updateLoveJob(job.id, {
+      status: "completed",
+      updatedAt: Date.now(),
+      processingCompletedAt: Date.now(),
+      error: null,
+      result: job.result,
+    });
+
+    const refreshed = await getLoveJobById(job.id);
+    return refreshed ? sanitizeLoveJob(refreshed) : null;
+  }
 
   let result: LoveJobResult | null = null;
+  let sentEmail: { provider: "resend" | "console"; messageId: string | null; sentAt: number } | null = null;
 
   try {
     result = buildLoveResult(job.input);
@@ -151,6 +162,11 @@ export async function processLoveJob(jobId: string) {
       requestId: job.id,
       result,
     });
+    sentEmail = {
+      provider: emailResult.provider,
+      messageId: emailResult.messageId,
+      sentAt: Date.now(),
+    };
 
     await updateLoveJob(job.id, {
       status: "completed",
@@ -160,10 +176,10 @@ export async function processLoveJob(jobId: string) {
       error: null,
       email: {
         ...job.email,
-        provider: emailResult.provider,
-        messageId: emailResult.messageId,
+        provider: sentEmail.provider,
+        messageId: sentEmail.messageId,
         sent: true,
-        sentAt: Date.now(),
+        sentAt: sentEmail.sentAt,
         error: null,
       },
     });
@@ -171,16 +187,19 @@ export async function processLoveJob(jobId: string) {
     const message = error instanceof Error ? error.message : "analysis_or_email_failed";
 
     await updateLoveJob(job.id, {
-      status: "failed",
+      status: sentEmail ? "completed" : "failed",
       updatedAt: Date.now(),
       processingCompletedAt: Date.now(),
-      error: message,
+      error: sentEmail ? null : message,
       result,
-      retryCount: (job.retryCount ?? 0) + 1,
+      retryCount: sentEmail ? job.retryCount ?? 0 : (job.retryCount ?? 0) + 1,
       email: {
         ...job.email,
-        sent: false,
-        error: message,
+        provider: sentEmail?.provider ?? job.email.provider,
+        messageId: sentEmail?.messageId ?? job.email.messageId,
+        sent: Boolean(sentEmail),
+        sentAt: sentEmail?.sentAt ?? job.email.sentAt,
+        error: sentEmail ? null : message,
       },
     });
   }

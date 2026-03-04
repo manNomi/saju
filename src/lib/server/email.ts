@@ -52,6 +52,7 @@ async function sendWithResend(payload: EmailSendPayload): Promise<EmailSendResul
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      "Idempotency-Key": `love-job-${payload.requestId}`,
     },
     body: JSON.stringify({
       from,
