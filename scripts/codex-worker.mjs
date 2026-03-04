@@ -407,6 +407,275 @@ async function runCodexReport(job, model, execTimeoutSec) {
   }
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function nlToBr(value) {
+  return escapeHtml(value).replaceAll("\n", "<br />");
+}
+
+function clampPercent(value) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function ratioToPercent(ratio) {
+  if (!Number.isFinite(ratio)) return 0;
+  return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+}
+
+function renderScoreCard(label, score, fillColor) {
+  const safeScore = clampPercent(score);
+  const safeLabel = escapeHtml(label);
+  return `
+    <td width="33.33%" style="padding:6px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#ffffff;border:1px solid #eaecf0;border-radius:12px;">
+        <tr>
+          <td style="padding:12px;">
+            <div style="font-size:12px;color:#667085;margin-bottom:4px;">${safeLabel}</div>
+            <div style="font-size:22px;font-weight:700;color:#101828;line-height:1.2;">${safeScore}<span style="font-size:13px;color:#667085;"> / 100</span></div>
+            <div style="margin-top:10px;height:8px;background:#eef2f6;border-radius:999px;overflow:hidden;">
+              <div style="width:${safeScore}%;height:100%;background:${fillColor};"></div>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  `;
+}
+
+function createEmailText(job, result, name) {
+  const detailedSections = Array.isArray(result?.detailedSections) ? result.detailedSections : [];
+  const yearlyGuidance = Array.isArray(result?.yearlyGuidance) ? result.yearlyGuidance : [];
+  const topYears = Array.isArray(result?.topYears) ? result.topYears : [];
+
+  const sectionText =
+    detailedSections.length > 0
+      ? `\n\n${detailedSections
+          .map((section) => `${section.title}\n${section.body}`)
+          .join("\n\n")}`
+      : "";
+  const topYearsText =
+    topYears.length > 0
+      ? `\n\n핵심 연도\n${topYears
+          .map(
+            (row) =>
+              `- ${row.year}년 · 연애 기회 ${ratioToPercent(row.loveChance)}% · 갈등 리스크 ${ratioToPercent(row.breakupRisk)}%`,
+          )
+          .join("\n")}`
+      : "";
+  const yearlyText =
+    yearlyGuidance.length > 0
+      ? `\n\n연도별 실행 가이드\n${yearlyGuidance
+          .map(
+            (row) =>
+              `- ${row.year}년 · 연애 기회 ${ratioToPercent(row.loveChance)}% · 갈등 리스크 ${ratioToPercent(row.breakupRisk)}% · ${row.focus}`,
+          )
+          .join("\n")}`
+      : "";
+
+  return [
+    `${name}님의 연애운 분석 결과`,
+    `요청 ID: ${job.id}`,
+    `연애 점수: ${clampPercent(result?.loveScore)} / 100`,
+    `결혼 안정성: ${clampPercent(result?.marriageScore)} / 100`,
+    `관계 리스크: ${clampPercent(result?.riskScore)} / 100`,
+    `핵심 요약: ${result.summary}`,
+    `좋은 흐름: ${result.highlight}`,
+    `주의 포인트: ${result.caution}`,
+    `타이밍 힌트: ${result.timingHint}`,
+    topYearsText,
+    yearlyText,
+    sectionText,
+    "",
+    `모델 버전: ${result.modelVersion} · 신뢰도 ${ratioToPercent(result.confidence)}%`,
+    "본 결과는 참고용 콘텐츠입니다.",
+  ].join("\n");
+}
+
+function createEmailHtml(job, result, name) {
+  const detailedSections = Array.isArray(result?.detailedSections) ? result.detailedSections : [];
+  const yearlyGuidance = Array.isArray(result?.yearlyGuidance) ? result.yearlyGuidance : [];
+  const topYears = Array.isArray(result?.topYears) ? result.topYears : [];
+  const evidenceCodes = Array.isArray(result?.evidenceCodes) ? result.evidenceCodes : [];
+
+  const topYearsRows =
+    topYears.length > 0
+      ? topYears
+          .map(
+            (row) => `
+              <tr>
+                <td style="padding:10px 8px;border-top:1px solid #f0f2f5;font-size:13px;color:#344054;">${escapeHtml(row.year)}</td>
+                <td style="padding:10px 8px;border-top:1px solid #f0f2f5;font-size:13px;color:#027a48;font-weight:600;">${ratioToPercent(row.loveChance)}%</td>
+                <td style="padding:10px 8px;border-top:1px solid #f0f2f5;font-size:13px;color:#b54708;font-weight:600;">${ratioToPercent(row.breakupRisk)}%</td>
+              </tr>
+            `,
+          )
+          .join("")
+      : `<tr><td colspan="3" style="padding:12px 8px;color:#667085;font-size:13px;border-top:1px solid #f0f2f5;">핵심 연도 데이터가 없습니다.</td></tr>`;
+
+  const yearlyRows =
+    yearlyGuidance.length > 0
+      ? yearlyGuidance
+          .map(
+            (row) => `
+              <tr>
+                <td style="padding:10px 0;border-top:1px solid #f0f2f5;">
+                  <div style="font-size:13px;color:#101828;font-weight:600;margin-bottom:4px;">${escapeHtml(row.year)}년 · 연애 ${ratioToPercent(row.loveChance)}% · 리스크 ${ratioToPercent(row.breakupRisk)}%</div>
+                  <div style="font-size:13px;color:#344054;line-height:1.5;">${nlToBr(row.focus)}</div>
+                </td>
+              </tr>
+            `,
+          )
+          .join("")
+      : "";
+
+  const sectionBlocks =
+    detailedSections.length > 0
+      ? detailedSections
+          .map(
+            (section) => `
+              <tr>
+                <td style="padding:14px 16px;border:1px solid #eaecf0;border-radius:12px;background:#ffffff;">
+                  <div style="font-size:15px;font-weight:700;color:#101828;margin-bottom:8px;">${escapeHtml(section.title)}</div>
+                  <div style="font-size:14px;line-height:1.65;color:#344054;">${nlToBr(section.body)}</div>
+                </td>
+              </tr>
+              <tr><td style="height:10px;"></td></tr>
+            `,
+          )
+          .join("")
+      : "";
+
+  const evidenceHtml =
+    evidenceCodes.length > 0
+      ? `<div style="font-size:12px;color:#667085;margin-top:8px;">근거 코드: ${escapeHtml(evidenceCodes.join(", "))}</div>`
+      : "";
+
+  return `
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f4f6f8;padding:0;margin:0;">
+  <tr>
+    <td align="center" style="padding:20px 10px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;border-collapse:collapse;background:#ffffff;border:1px solid #e4e7ec;border-radius:16px;overflow:hidden;">
+        <tr>
+          <td style="padding:20px;background:linear-gradient(135deg,#ff6f0f 0%,#ff9b56 100%);color:#ffffff;">
+            <div style="font-size:13px;opacity:0.92;">AI 사주 연애 리포트</div>
+            <div style="font-size:24px;font-weight:800;line-height:1.3;margin-top:4px;">${escapeHtml(name)}님의 연애운 결과</div>
+            <div style="font-size:13px;opacity:0.95;margin-top:8px;">요청 ID: ${escapeHtml(job.id)}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 16px 8px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+              <tr>
+                ${renderScoreCard("연애 점수", result?.loveScore, "#ff6f0f")}
+                ${renderScoreCard("결혼 안정성", result?.marriageScore, "#12b76a")}
+                ${renderScoreCard("관계 리스크", result?.riskScore, "#f79009")}
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 20px 0;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;">
+              <tr><td style="padding:14px 16px;">
+                <div style="font-size:15px;color:#9a3412;font-weight:700;margin-bottom:8px;">핵심 요약</div>
+                <div style="font-size:14px;color:#7c2d12;line-height:1.65;">${nlToBr(result?.summary)}</div>
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:12px 20px 0;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+              <tr>
+                <td width="50%" style="padding-right:6px;vertical-align:top;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#ecfdf3;border:1px solid #abefc6;border-radius:12px;">
+                    <tr><td style="padding:12px;">
+                      <div style="font-size:14px;font-weight:700;color:#027a48;margin-bottom:6px;">좋은 흐름</div>
+                      <div style="font-size:13px;color:#05603a;line-height:1.6;">${nlToBr(result?.highlight)}</div>
+                    </td></tr>
+                  </table>
+                </td>
+                <td width="50%" style="padding-left:6px;vertical-align:top;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fff7ed;border:1px solid #fedf89;border-radius:12px;">
+                    <tr><td style="padding:12px;">
+                      <div style="font-size:14px;font-weight:700;color:#b54708;margin-bottom:6px;">주의 포인트</div>
+                      <div style="font-size:13px;color:#93370d;line-height:1.6;">${nlToBr(result?.caution)}</div>
+                    </td></tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:12px 20px 0;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f5f8ff;border:1px solid #d1e0ff;border-radius:12px;">
+              <tr><td style="padding:12px 14px;">
+                <div style="font-size:14px;font-weight:700;color:#1849a9;margin-bottom:6px;">타이밍 힌트</div>
+                <div style="font-size:13px;color:#1d2939;line-height:1.6;">${nlToBr(result?.timingHint)}</div>
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:14px 20px 0;">
+            <div style="font-size:16px;color:#101828;font-weight:800;margin-bottom:8px;">핵심 연도</div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;">
+              <tr style="background:#f9fafb;">
+                <th align="left" style="padding:10px 8px;font-size:12px;color:#475467;">연도</th>
+                <th align="left" style="padding:10px 8px;font-size:12px;color:#475467;">연애 기회</th>
+                <th align="left" style="padding:10px 8px;font-size:12px;color:#475467;">갈등 리스크</th>
+              </tr>
+              ${topYearsRows}
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:14px 20px 0;">
+            <div style="font-size:16px;color:#101828;font-weight:800;margin-bottom:8px;">연도별 실행 가이드</div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#ffffff;border:1px solid #eaecf0;border-radius:12px;padding:0 14px;">
+              <tr><td style="padding:0 14px;">${yearlyRows || '<div style="padding:12px 0;font-size:13px;color:#667085;">연도별 가이드 데이터가 없습니다.</div>'}</td></tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:14px 20px 0;">
+            <div style="font-size:16px;color:#101828;font-weight:800;margin-bottom:8px;">상세 리포트</div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+              ${sectionBlocks}
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 20px 20px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f9fafb;border:1px solid #eaecf0;border-radius:12px;">
+              <tr><td style="padding:12px 14px;">
+                <div style="font-size:12px;color:#475467;line-height:1.6;">
+                  모델: ${escapeHtml(result?.modelVersion)} · 신뢰도 ${ratioToPercent(result?.confidence)}%
+                </div>
+                ${evidenceHtml}
+                <div style="font-size:12px;color:#667085;line-height:1.6;margin-top:8px;">
+                  본 결과는 참고용 콘텐츠이며, 실제 관계의 핵심은 상호 존중과 대화입니다.
+                </div>
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+  `;
+}
+
 async function sendResultEmail(job, result) {
   const mode = process.env.EMAIL_PROVIDER ?? (process.env.RESEND_API_KEY ? "resend" : "console");
   const to = job?.input?.email ?? "";
@@ -436,17 +705,6 @@ async function sendResultEmail(job, result) {
     throw new Error("resend_not_configured");
   }
 
-  const lines = [
-    `${name}님의 연애운 분석 결과`,
-    `요청 ID: ${job.id}`,
-    `핵심 요약: ${result.summary}`,
-    `좋은 흐름: ${result.highlight}`,
-    `주의 포인트: ${result.caution}`,
-    `타이밍 힌트: ${result.timingHint}`,
-    "",
-    result.detailedReport,
-  ];
-
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -458,19 +716,8 @@ async function sendResultEmail(job, result) {
       from,
       to: [to],
       subject: "[사주 결과] 요청하신 연애운 리포트",
-      text: lines.join("\n"),
-      html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.55;color:#111827;">
-        <h2 style="margin:0 0 12px;">${name}님의 연애운 분석 결과</h2>
-        <p style="margin:0 0 10px;">요청 ID: <b>${job.id}</b></p>
-        <p style="margin:0 0 10px;">핵심 요약: ${result.summary}</p>
-        <p style="margin:0 0 10px;">좋은 흐름: ${result.highlight}</p>
-        <p style="margin:0 0 10px;">주의 포인트: ${result.caution}</p>
-        <p style="margin:0 0 10px;">타이밍 힌트: ${result.timingHint}</p>
-        <hr style="margin:16px 0;border:none;border-top:1px solid #e5e7eb;" />
-        ${result.detailedSections
-          .map((section) => `<h3 style="margin:12px 0 6px;">${section.title}</h3><p style="margin:0 0 8px;">${section.body}</p>`)
-          .join("")}
-      </div>`,
+      text: createEmailText(job, result, name),
+      html: createEmailHtml(job, result, name),
     }),
   });
 
