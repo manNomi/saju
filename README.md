@@ -102,10 +102,10 @@ node --env-file=.env.local scripts/codex-worker.mjs --once --max=3 --timeout=180
 - 이메일 발송 시 `RESEND_API_KEY`, `EMAIL_FROM` 설정
 - 필요 시 `CODEX_EXEC_TIMEOUT_SEC`, `CODEX_STALE_PROCESSING_SEC`로 기본값 조정 가능
 
-### macOS launchd (1분 간격 자동 실행)
+### macOS launchd (10분 간격 자동 실행)
 
 ```bash
-# 설치 (RunAtLoad + 60초 간격)
+# 설치 (RunAtLoad + 600초 간격)
 npm run worker:launchd:install
 
 # 상태/로그 확인

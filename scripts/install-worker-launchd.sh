@@ -56,7 +56,7 @@ cat > "${PLIST_PATH}" <<EOF
   <string>${ROOT_DIR}</string>
 
   <key>StartInterval</key>
-  <integer>60</integer>
+  <integer>600</integer>
 
   <key>RunAtLoad</key>
   <true/>
@@ -79,4 +79,4 @@ echo "Installed launchd worker:"
 echo "  plist: ${PLIST_PATH}"
 echo "  out:   ${OUT_LOG}"
 echo "  err:   ${ERR_LOG}"
-echo "  interval: every 1 minute"
+echo "  interval: every 10 minutes"
