@@ -31,7 +31,58 @@ const DEFAULT_INPUT: SajuInput = {
 };
 
 const cardClassName =
-  "rounded-3xl border border-seed-stroke-subtle bg-seed-bg-floating p-5 shadow-card";
+  "rounded-3xl border border-seed-stroke-subtle bg-seed-bg-floating p-5 shadow-card motion-safe:animate-card-rise";
+
+const STEP_INDEX: Record<Step, number> = {
+  landing: 1,
+  input: 2,
+  submitted: 3,
+};
+
+const STEP_LABELS = ["소개", "정보입력", "완료"] as const;
+
+function FlowStepper({ step }: { step: Step }) {
+  const current = STEP_INDEX[step];
+
+  return (
+    <ol className="mb-4 grid grid-cols-3 gap-2">
+      {STEP_LABELS.map((label, idx) => {
+        const num = idx + 1;
+        const active = num <= current;
+
+        return (
+          <li
+            key={label}
+            className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition-colors ${
+              active
+                ? "border-[var(--seed-color-stroke-brand)]/45 bg-seed-bg-brand-weak text-[var(--seed-color-fg-brand)]"
+                : "border-seed-stroke-subtle bg-seed-bg-fill text-seed-fg-subtle"
+            }`}
+          >
+            <span
+              className={`grid h-5 w-5 place-items-center rounded-full text-[11px] font-bold ${
+                active ? "bg-[var(--seed-color-bg-brand-solid)] text-white" : "bg-seed-bg-default text-seed-fg-subtle"
+              }`}
+            >
+              {num}
+            </span>
+            <span className="text-[11px] font-semibold">{label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function LoadingDots() {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:0ms]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:120ms]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:240ms]" />
+    </span>
+  );
+}
 
 function CarrotBuddy({ label }: { label: string }) {
   return (
@@ -43,7 +94,7 @@ function CarrotBuddy({ label }: { label: string }) {
 
 function ScreenFrame({ children }: { children: React.ReactNode }) {
   return (
-    <main className="mx-auto w-full max-w-[430px] px-4 pb-[calc(var(--seed-safe-area-bottom)+16px)] pt-5">
+    <main className="mx-auto w-full max-w-[430px] px-4 pb-[calc(var(--seed-safe-area-bottom)+16px)] pt-5 motion-safe:animate-screen-enter">
       {children}
     </main>
   );
@@ -68,7 +119,7 @@ function TopBar({ title, onBack }: { title: string; onBack?: () => void }) {
 }
 
 function legalLinkClass() {
-  return "inline-flex items-center justify-center rounded-xl border border-seed-stroke-subtle bg-seed-bg-fill px-4 py-2.5 text-[12px] text-seed-fg-subtle underline underline-offset-2";
+  return "inline-flex items-center justify-center rounded-xl border border-seed-stroke-subtle bg-seed-bg-fill px-4 py-2.5 text-[12px] text-seed-fg-subtle underline underline-offset-2 transition-transform duration-150 active:scale-[0.98]";
 }
 
 export default function LoveFortuneApp() {
@@ -76,6 +127,7 @@ export default function LoveFortuneApp() {
   const [form, setForm] = useState<SajuInput>(DEFAULT_INPUT);
   const [error, setError] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) return;
@@ -115,6 +167,8 @@ export default function LoveFortuneApp() {
   };
 
   const submit = async () => {
+    if (isSubmitting) return;
+
     if (!form.birthDate) {
       setError("생년월일은 꼭 입력해 주세요.");
       return;
@@ -126,6 +180,7 @@ export default function LoveFortuneApp() {
     }
 
     setError("");
+    setIsSubmitting(true);
 
     try {
       const created = await createLoveJobRequest(form, captchaToken || undefined);
@@ -133,14 +188,24 @@ export default function LoveFortuneApp() {
       setStep("submitted");
     } catch (e) {
       setError(e instanceof Error ? e.message : "요청 생성에 실패했어요.");
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const resetToLanding = () => {
+    setForm(DEFAULT_INPUT);
+    setCaptchaToken("");
+    setError("");
+    setStep("landing");
   };
 
   return (
     <div className="min-h-dvh bg-[radial-gradient(circle_at_6%_4%,var(--seed-color-bg-brand-weak),transparent_34%),radial-gradient(circle_at_96%_2%,var(--seed-color-bg-brand-weak),transparent_28%),var(--seed-color-bg-layer-fill)]">
       {step === "landing" && (
         <ScreenFrame>
-          <section className="relative overflow-hidden rounded-[32px] border border-seed-stroke-subtle bg-seed-bg-floating p-5 shadow-card">
+          <FlowStepper step={step} />
+          <section className="relative overflow-hidden rounded-[32px] border border-seed-stroke-subtle bg-seed-bg-floating p-5 shadow-card motion-safe:animate-card-rise">
             <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-seed-bg-brand-weak/80" />
             <div className="pointer-events-none absolute -bottom-10 -left-10 h-28 w-28 rounded-full bg-seed-bg-brand-weak/70" />
 
@@ -165,13 +230,13 @@ export default function LoveFortuneApp() {
             </Text>
 
             <div className="mt-6 grid grid-cols-3 gap-4">
-              <p className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2.5 text-center text-[12px] font-medium text-seed-fg-primary">
+              <p className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2.5 text-center text-[12px] font-medium text-seed-fg-primary motion-safe:animate-card-rise">
                 무로그인
               </p>
-              <p className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2.5 text-center text-[12px] font-medium text-seed-fg-primary">
+              <p className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2.5 text-center text-[12px] font-medium text-seed-fg-primary motion-safe:animate-card-rise [animation-delay:80ms]">
                 1분 입력
               </p>
-              <p className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2.5 text-center text-[12px] font-medium text-seed-fg-primary">
+              <p className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2.5 text-center text-[12px] font-medium text-seed-fg-primary motion-safe:animate-card-rise [animation-delay:160ms]">
                 이메일 결과
               </p>
             </div>
@@ -179,11 +244,15 @@ export default function LoveFortuneApp() {
             <ActionButton
               variant="brandSolid"
               size="large"
-              className="mt-8 w-full !min-h-[54px]"
+              className="mt-8 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98] motion-safe:animate-soft-pulse"
               onClick={() => setStep("input")}
             >
               무료로 시작하기
             </ActionButton>
+
+            <p className="mt-3 text-center text-[12px] text-seed-fg-subtle">
+              버튼을 누르면 입력 화면으로 이동합니다.
+            </p>
           </section>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
@@ -204,8 +273,9 @@ export default function LoveFortuneApp() {
         <>
           <TopBar title="사주 정보 입력" onBack={() => setStep("landing")} />
           <ScreenFrame>
+            <FlowStepper step={step} />
             <section className={cardClassName}>
-              <Text as="p" className="mb-4 block text-sm leading-[1.45] text-seed-fg-muted">
+              <Text as="p" className="mb-5 block text-sm leading-[1.5] text-seed-fg-muted">
                 입력 후 자동화 작업이 실행되며, 결과를 이메일로 발송합니다.
               </Text>
 
@@ -289,11 +359,26 @@ export default function LoveFortuneApp() {
               <ActionButton
                 variant="brandSolid"
                 size="large"
-                className="mt-8 w-full !min-h-[54px]"
+                className="mt-8 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98]"
                 onClick={submit}
+                disabled={isSubmitting}
               >
-                요청 등록하기
+                {isSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    요청 등록 중 <LoadingDots />
+                  </span>
+                ) : (
+                  "요청 등록하기"
+                )}
               </ActionButton>
+
+              <button
+                type="button"
+                className="mt-3 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill py-3 text-[14px] font-semibold text-seed-fg-primary transition-transform duration-150 active:scale-[0.98]"
+                onClick={() => setForm(DEFAULT_INPUT)}
+              >
+                입력 초기화
+              </button>
             </section>
           </ScreenFrame>
         </>
@@ -303,6 +388,7 @@ export default function LoveFortuneApp() {
         <>
           <TopBar title="요청 완료" onBack={() => setStep("landing")} />
           <ScreenFrame>
+            <FlowStepper step={step} />
             <section className={`${cardClassName} text-center`}>
               <CarrotBuddy label="이메일 안내 캐릭터" />
               <Text as="h2" className="mt-1 block text-[24px] font-black leading-[1.25] text-seed-fg-primary">
@@ -314,20 +400,31 @@ export default function LoveFortuneApp() {
               <p className="mt-2 text-xs text-seed-fg-subtle">
                 메일 수신함과 스팸함을 함께 확인해 주세요.
               </p>
+              <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-[var(--seed-color-stroke-brand)]/40 bg-seed-bg-brand-weak px-3 py-1.5 text-[12px] font-semibold text-[var(--seed-color-fg-brand)]">
+                메일 발송 준비 중 <LoadingDots />
+              </p>
 
               <ActionButton
                 variant="brandSolid"
                 size="large"
-                className="mt-8 w-full !min-h-[54px]"
+                className="mt-8 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98]"
+                onClick={resetToLanding}
+              >
+                처음으로 돌아가기
+              </ActionButton>
+
+              <button
+                type="button"
+                className="mt-3 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill py-3 text-[14px] font-semibold text-seed-fg-primary transition-transform duration-150 active:scale-[0.98]"
                 onClick={() => {
                   setForm(DEFAULT_INPUT);
                   setCaptchaToken("");
                   setError("");
-                  setStep("landing");
+                  setStep("input");
                 }}
               >
-                처음으로 돌아가기
-              </ActionButton>
+                새 요청 다시 입력
+              </button>
             </section>
           </ScreenFrame>
         </>
