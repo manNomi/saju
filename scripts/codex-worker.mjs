@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
@@ -17,9 +17,50 @@ const DEFAULT_MAX = 5;
 const DEFAULT_LOOP_INTERVAL_SEC = 45;
 const DEFAULT_EXEC_TIMEOUT_SEC = 240;
 const DEFAULT_STALE_PROCESSING_SEC = 900;
+const ENGINE_MODULE_URL = pathToFileURL(path.join(ROOT_DIR, "src/lib/saju-love-engine.ts")).href;
+let engineModulePromise = null;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+async function getEngineModule() {
+  if (!engineModulePromise) {
+    engineModulePromise = import(ENGINE_MODULE_URL);
+  }
+  return engineModulePromise;
+}
+
+function normalizeBirthInput(rawInput) {
+  return {
+    birthDate: String(rawInput?.birthDate ?? ""),
+    birthTime: String(rawInput?.birthTime ?? ""),
+    gender: rawInput?.gender === "male" ? "male" : "female",
+    calendarType: rawInput?.calendarType === "lunar" ? "lunar" : "solar",
+    birthPlace: String(rawInput?.birthPlace ?? "대한민국"),
+  };
+}
+
+async function buildEngineBaseline(job) {
+  const engine = await getEngineModule();
+  const normalized = normalizeBirthInput(job?.input);
+  const analysis = engine.analyzeLoveFortune(normalized);
+
+  return {
+    loveScore: analysis.loveScore,
+    marriageScore: analysis.marriageScore,
+    riskScore: analysis.riskScore,
+    confidence: analysis.confidence,
+    dominantElement: engine.toKoreanElementName(analysis.elementProfile.dominant),
+    weakestElement: engine.toKoreanElementName(analysis.elementProfile.weakest),
+    topYears: analysis.topYears.map((row) => ({
+      year: row.year,
+      loveChance: row.loveChance,
+      breakupRisk: row.breakupRisk,
+    })),
+    evidenceCodes: analysis.evidenceCodes,
+    modelVersion: analysis.modelVersion,
+  };
 }
 
 function log(level, event, detail = {}) {
@@ -329,7 +370,7 @@ function normalizeLoveResultPhrasing(result) {
   };
 }
 
-function buildCodexPrompt(job) {
+function buildCodexPrompt(job, baseline) {
   const nowYear = new Date().getFullYear();
 
   return [
@@ -366,6 +407,8 @@ function buildCodexPrompt(job) {
     "- '갈등 리스크'는 관계에서 오해·다툼·거리감이 커질 가능성임을 쉬운 말로 설명하라.",
     "- 리스크 퍼센트가 높을수록 무엇을 조심해야 하는지 구체적 주의 행동을 제시하라.",
     `- 연도 가이드는 ${nowYear}년 ~ ${nowYear + 9}년 범위에서 작성하라.`,
+    "- loveScore, marriageScore, riskScore, confidence, dominantElement, weakestElement, topYears는 아래 baseline 값을 그대로 사용하라.",
+    "- evidenceCodes는 baseline에 있는 코드들을 우선 유지하라.",
     "",
     "[최종 자기 점검 후 출력]",
     "1) 문장이 어색하게 AI 답변처럼 보이면 사람 말투로 다시 고쳐라.",
@@ -386,12 +429,47 @@ function buildCodexPrompt(job) {
       null,
       2,
     ),
+    "",
+    "baseline:",
+    JSON.stringify(
+      {
+        loveScore: baseline.loveScore,
+        marriageScore: baseline.marriageScore,
+        riskScore: baseline.riskScore,
+        confidence: baseline.confidence,
+        dominantElement: baseline.dominantElement,
+        weakestElement: baseline.weakestElement,
+        topYears: baseline.topYears,
+        evidenceCodes: baseline.evidenceCodes,
+        modelVersion: baseline.modelVersion,
+      },
+      null,
+      2,
+    ),
   ].join("\n");
 }
 
-async function runCodexReport(job, model, execTimeoutSec) {
+function applyBaselineToResult(result, baseline) {
+  const llmEvidenceCodes = Array.isArray(result?.evidenceCodes) ? result.evidenceCodes : [];
+  const mergedEvidenceCodes = Array.from(new Set([...baseline.evidenceCodes, ...llmEvidenceCodes]));
+
+  return {
+    ...result,
+    loveScore: baseline.loveScore,
+    marriageScore: baseline.marriageScore,
+    riskScore: baseline.riskScore,
+    confidence: baseline.confidence,
+    dominantElement: baseline.dominantElement,
+    weakestElement: baseline.weakestElement,
+    topYears: baseline.topYears,
+    evidenceCodes: mergedEvidenceCodes.length >= 3 ? mergedEvidenceCodes : baseline.evidenceCodes,
+    modelVersion: `codex-worker+${baseline.modelVersion}`,
+  };
+}
+
+async function runCodexReport(job, baseline, model, execTimeoutSec) {
   const outPath = path.join(os.tmpdir(), `codex-love-report-${job.id}-${Date.now()}.json`);
-  const prompt = buildCodexPrompt(job);
+  const prompt = buildCodexPrompt(job, baseline);
 
   const args = [
     "exec",
@@ -485,7 +563,7 @@ async function runCodexReport(job, model, execTimeoutSec) {
     const raw = await readFile(outPath, "utf8");
     const parsed = parseJsonOutput(raw);
     assertLoveResultShape(parsed);
-    return normalizeLoveResultPhrasing(parsed);
+    return applyBaselineToResult(normalizeLoveResultPhrasing(parsed), baseline);
   } finally {
     await rm(outPath, { force: true }).catch(() => {});
   }
@@ -995,7 +1073,8 @@ async function processOneJob(db, job, model, execTimeoutSec) {
 
   let result = null;
   try {
-    result = await runCodexReport(job, model, execTimeoutSec);
+    const baseline = await buildEngineBaseline(job);
+    result = await runCodexReport(job, baseline, model, execTimeoutSec);
     const email = await sendResultEmail(job, result);
     await completeJob(db, job, result, email);
     log("info", "job_completed", {
