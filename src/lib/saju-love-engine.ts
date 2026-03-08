@@ -126,7 +126,7 @@ export type LoveAnalysis = {
   modelVersion: string;
 };
 
-const MODEL_VERSION = "love-engine-v2.1";
+const MODEL_VERSION = "love-engine-v2.2";
 
 const STEM_ELEMENT: Record<HeavenlyStem, Element> = {
   JIA: "wood",
@@ -326,6 +326,10 @@ function clamp01(value: number) {
 
 function toPercent01(value: number) {
   return clamp01(value / 100);
+}
+
+function amplify01(value: number, center = 0.5, gain = 1.35) {
+  return clamp01(center + (value - center) * gain);
 }
 
 function generates(from: Element, to: Element) {
@@ -800,21 +804,45 @@ export function analyzeLoveFortune(input: BirthInput): LoveAnalysis {
     0.5 * spousePalace.stability + 0.4 * spouseStar.balance + 0.1 * dayMasterStrength,
   );
 
-  const loveScore = Math.round(53 + overallPotential * 46);
-  const marriageScore = Math.round(49 + marriagePotential * 47);
-  const riskScore = Math.round(11 + instabilityRisk * 88);
+  const lovePotentialSpread = amplify01(
+    overallPotential + 0.08 * (spousePalace.stability - spousePalace.conflictRisk) + 0.05 * (spouseStar.presence - 0.3),
+    0.33,
+    1.45,
+  );
+
+  const marriagePotentialSpread = amplify01(
+    marriagePotential + 0.06 * spouseStar.presence - 0.04 * spousePalace.conflictRisk,
+    0.43,
+    1.4,
+  );
+
+  const riskPotentialSpread = amplify01(
+    instabilityRisk + 0.06 * (1 - spousePalace.stability) + 0.04 * (stars.hongYanCount > 0 ? 1 : 0),
+    0.4,
+    1.45,
+  );
+
+  const loveScore = Math.round(38 + lovePotentialSpread * 60);
+  const marriageScore = Math.round(35 + marriagePotentialSpread * 62);
+  const riskScore = Math.round(8 + riskPotentialSpread * 92);
 
   const confidence = buildConfidence(input);
-  const timeline = calcYearLoveLuck(chart, input.gender, overallPotential, instabilityRisk, dayMasterStrength);
+  const timeline = calcYearLoveLuck(
+    chart,
+    input.gender,
+    lovePotentialSpread,
+    riskPotentialSpread,
+    dayMasterStrength,
+  );
   const topYears = pickTopYears(timeline);
   const bestYear = topYears[0]?.year ?? new Date().getFullYear();
 
   let summary = "연애운이 안정적으로 흐릅니다. 속도보다 관계 구조를 단단히 잡는 방식이 유리해요.";
-  if (loveScore >= 82 && riskScore < 45) {
+  if (loveScore >= 85 && riskScore < 40) {
     summary = "인연 유입과 관계 진전 흐름이 강합니다. 결혼 전환까지 노려볼 수 있는 국면입니다.";
-  } else if (loveScore >= 76 && riskScore >= 55) {
+  } else if (loveScore >= 73 && riskScore >= 62) {
     summary = "만남은 강하지만 감정 진폭도 큽니다. 기준/경계를 먼저 맞추면 성과가 큽니다.";
-  } else if (loveScore < 68) {
+  } else if (loveScore < 58) {
     summary = "단기 스파크보다 신뢰 누적형 연애가 더 잘 맞습니다. 관계의 속도 조절이 핵심입니다.";
   }
 
@@ -873,6 +901,7 @@ export function analyzeLoveFortune(input: BirthInput): LoveAnalysis {
     `spousePalace(stability=${spousePalace.stability.toFixed(2)}, risk=${spousePalace.conflictRisk.toFixed(2)})`,
     `spouseStar(presence=${spouseStar.presence.toFixed(2)}, balance=${spouseStar.balance.toFixed(2)})`,
     `stars(pbInner=${stars.peachBlossom.inner}, pbOuter=${stars.peachBlossom.outer}, hongLuan=${stars.hongLuanCount}, hongYan=${stars.hongYanCount})`,
+    `potential(raw=${overallPotential.toFixed(2)}, spread=${lovePotentialSpread.toFixed(2)}), risk(raw=${instabilityRisk.toFixed(2)}, spread=${riskPotentialSpread.toFixed(2)})`,
     `confidence=${confidence.toFixed(2)}, model=${MODEL_VERSION}`,
   ];
 
