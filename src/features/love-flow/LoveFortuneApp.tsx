@@ -31,7 +31,7 @@ const DEFAULT_INPUT: SajuInput = {
 };
 
 const cardClassName =
-  "rounded-3xl border border-seed-stroke-subtle bg-seed-bg-floating p-5 shadow-card motion-safe:animate-card-rise";
+  "rounded-3xl border border-seed-stroke-subtle bg-seed-bg-floating p-6 shadow-card motion-safe:animate-card-rise";
 
 const STEP_INDEX: Record<Step, number> = {
   landing: 1,
@@ -45,7 +45,7 @@ function FlowStepper({ step }: { step: Step }) {
   const current = STEP_INDEX[step];
 
   return (
-    <ol className="mb-4 grid grid-cols-3 gap-2">
+    <ol className="mb-5 grid grid-cols-3 gap-3">
       {STEP_LABELS.map((label, idx) => {
         const num = idx + 1;
         const active = num <= current;
@@ -53,7 +53,7 @@ function FlowStepper({ step }: { step: Step }) {
         return (
           <li
             key={label}
-            className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition-colors ${
+            className={`flex items-center gap-2.5 rounded-2xl border px-3 py-3 transition-colors ${
               active
                 ? "border-[var(--seed-color-stroke-brand)]/45 bg-seed-bg-brand-weak text-[var(--seed-color-fg-brand)]"
                 : "border-seed-stroke-subtle bg-seed-bg-fill text-seed-fg-subtle"
@@ -94,7 +94,7 @@ function CarrotBuddy({ label }: { label: string }) {
 
 function ScreenFrame({ children }: { children: React.ReactNode }) {
   return (
-    <main className="mx-auto w-full max-w-[430px] px-4 pb-[calc(var(--seed-safe-area-bottom)+16px)] pt-5 motion-safe:animate-screen-enter">
+    <main className="mx-auto w-full max-w-[430px] px-4 pb-[calc(var(--seed-safe-area-bottom)+20px)] pt-6 motion-safe:animate-screen-enter">
       {children}
     </main>
   );
@@ -119,7 +119,7 @@ function TopBar({ title, onBack }: { title: string; onBack?: () => void }) {
 }
 
 function legalLinkClass() {
-  return "inline-flex items-center justify-center rounded-xl border border-seed-stroke-subtle bg-seed-bg-fill px-4 py-2.5 text-[12px] text-seed-fg-subtle underline underline-offset-2 transition-transform duration-150 active:scale-[0.98]";
+  return "inline-flex items-center justify-center rounded-xl border border-seed-stroke-subtle bg-seed-bg-fill px-4 py-3 text-[12px] text-seed-fg-subtle underline underline-offset-2 transition-transform duration-150 active:scale-[0.98]";
 }
 
 export default function LoveFortuneApp() {
@@ -217,21 +217,21 @@ export default function LoveFortuneApp() {
 
             <Text
               as="h1"
-              className="mt-2 block text-[31px] font-black leading-[1.15] tracking-[-0.03em] text-seed-fg-primary"
+              className="mt-4 block text-[31px] font-black leading-[1.15] tracking-[-0.03em] text-seed-fg-primary"
             >
               오늘의 연애 흐름
               <br />
               가볍게 확인해요
             </Text>
-            <Text as="p" className="mt-3 block text-[15px] leading-[1.55] text-seed-fg-muted">
+            <Text as="p" className="mt-4 block text-[15px] leading-[1.55] text-seed-fg-muted">
               논문·명리 규칙 기반 리포트를 자동 생성해요.
               <br />
               무료입니다 지금.
             </Text>
 
-            <div className="mt-6 grid grid-cols-3 gap-4">
+            <div className="mt-8 grid grid-cols-3 gap-4">
               <p className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2.5 text-center text-[12px] font-medium text-seed-fg-primary motion-safe:animate-card-rise">
-                무로그인
+                비로그인
               </p>
               <p className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2.5 text-center text-[12px] font-medium text-seed-fg-primary motion-safe:animate-card-rise [animation-delay:80ms]">
                 1분 입력
@@ -244,18 +244,18 @@ export default function LoveFortuneApp() {
             <ActionButton
               variant="brandSolid"
               size="large"
-              className="mt-8 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98] motion-safe:animate-soft-pulse"
+              className="mt-12 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98] motion-safe:animate-soft-pulse"
               onClick={() => setStep("input")}
             >
               무료로 시작하기
             </ActionButton>
 
-            <p className="mt-3 text-center text-[12px] text-seed-fg-subtle">
+            <p className="mt-5 text-center text-[12px] text-seed-fg-subtle">
               버튼을 누르면 입력 화면으로 이동합니다.
             </p>
           </section>
 
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-5">
             <Link className={legalLinkClass()} href="/privacy">
               개인정보 처리방침
             </Link>
@@ -275,11 +275,11 @@ export default function LoveFortuneApp() {
           <ScreenFrame>
             <FlowStepper step={step} />
             <section className={cardClassName}>
-              <Text as="p" className="mb-5 block text-sm leading-[1.5] text-seed-fg-muted">
+              <Text as="p" className="mb-6 block text-sm leading-[1.55] text-seed-fg-muted">
                 입력 후 자동화 작업이 실행되며, 결과를 이메일로 발송합니다.
               </Text>
 
-              <label className="mb-2 mt-3 block text-[13px] font-bold text-seed-fg-primary">이름 (선택)</label>
+              <label className="mb-2 mt-4 block text-[13px] font-bold text-seed-fg-primary">이름 (선택)</label>
               <TextField.Root className="bg-seed-bg-default">
                 <TextField.Input
                   value={form.name}
@@ -288,7 +288,7 @@ export default function LoveFortuneApp() {
                 />
               </TextField.Root>
 
-              <label className="mb-2 mt-3 block text-[13px] font-bold text-seed-fg-primary">이메일</label>
+              <label className="mb-2 mt-4 block text-[13px] font-bold text-seed-fg-primary">이메일</label>
               <TextField.Root className="bg-seed-bg-default">
                 <TextField.Input
                   type="email"
@@ -298,7 +298,7 @@ export default function LoveFortuneApp() {
                 />
               </TextField.Root>
 
-              <label className="mb-2 mt-3 block text-[13px] font-bold text-seed-fg-primary">생년월일</label>
+              <label className="mb-2 mt-4 block text-[13px] font-bold text-seed-fg-primary">생년월일</label>
               <TextField.Root className="bg-seed-bg-default">
                 <TextField.Input
                   type="date"
@@ -307,7 +307,7 @@ export default function LoveFortuneApp() {
                 />
               </TextField.Root>
 
-              <label className="mb-2 mt-3 block text-[13px] font-bold text-seed-fg-primary">출생 시간 (선택)</label>
+              <label className="mb-2 mt-4 block text-[13px] font-bold text-seed-fg-primary">출생 시간 (선택)</label>
               <TextField.Root className="bg-seed-bg-default">
                 <TextField.Input
                   type="time"
@@ -316,7 +316,7 @@ export default function LoveFortuneApp() {
                 />
               </TextField.Root>
 
-              <div className="mt-5 grid grid-cols-2 gap-4">
+              <div className="mt-6 grid grid-cols-2 gap-5">
                 <div>
                   <label className="mb-2 block text-[13px] font-bold text-seed-fg-primary">성별</label>
                   <select
@@ -341,7 +341,7 @@ export default function LoveFortuneApp() {
                 </div>
               </div>
 
-              <label className="mb-2 mt-3 block text-[13px] font-bold text-seed-fg-primary">출생지 (선택)</label>
+              <label className="mb-2 mt-4 block text-[13px] font-bold text-seed-fg-primary">출생지 (선택)</label>
               <TextField.Root className="bg-seed-bg-default">
                 <TextField.Input
                   value={form.birthPlace}
@@ -351,15 +351,15 @@ export default function LoveFortuneApp() {
               </TextField.Root>
 
               {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ? (
-                <div id="turnstile-widget" className="mt-3 min-h-[64px]" />
+                <div id="turnstile-widget" className="mt-5 min-h-[64px]" />
               ) : null}
 
-              {error ? <p className="mt-3 text-[13px] text-[var(--seed-color-fg-critical)]">{error}</p> : null}
+              {error ? <p className="mt-4 text-[13px] text-[var(--seed-color-fg-critical)]">{error}</p> : null}
 
               <ActionButton
                 variant="brandSolid"
                 size="large"
-                className="mt-8 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98]"
+                className="mt-10 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98]"
                 onClick={submit}
                 disabled={isSubmitting}
               >
@@ -374,7 +374,7 @@ export default function LoveFortuneApp() {
 
               <button
                 type="button"
-                className="mt-3 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill py-3 text-[14px] font-semibold text-seed-fg-primary transition-transform duration-150 active:scale-[0.98]"
+                className="mt-4 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill py-3 text-[14px] font-semibold text-seed-fg-primary transition-transform duration-150 active:scale-[0.98]"
                 onClick={() => setForm(DEFAULT_INPUT)}
               >
                 입력 초기화
@@ -391,23 +391,23 @@ export default function LoveFortuneApp() {
             <FlowStepper step={step} />
             <section className={`${cardClassName} text-center`}>
               <CarrotBuddy label="이메일 안내 캐릭터" />
-              <Text as="h2" className="mt-1 block text-[24px] font-black leading-[1.25] text-seed-fg-primary">
+              <Text as="h2" className="mt-3 block text-[24px] font-black leading-[1.25] text-seed-fg-primary">
                 요청이 접수됐어요
               </Text>
-              <Text as="p" className="mt-2 block text-sm leading-[1.45] text-seed-fg-muted">
+              <Text as="p" className="mt-3 block text-sm leading-[1.5] text-seed-fg-muted">
                 분석이 완료되면 입력하신 이메일로 결과를 보내드릴게요.
               </Text>
-              <p className="mt-2 text-xs text-seed-fg-subtle">
+              <p className="mt-3 text-xs text-seed-fg-subtle">
                 메일 수신함과 스팸함을 함께 확인해 주세요.
               </p>
-              <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-[var(--seed-color-stroke-brand)]/40 bg-seed-bg-brand-weak px-3 py-1.5 text-[12px] font-semibold text-[var(--seed-color-fg-brand)]">
+              <p className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full border border-[var(--seed-color-stroke-brand)]/40 bg-seed-bg-brand-weak px-3 py-1.5 text-[12px] font-semibold text-[var(--seed-color-fg-brand)]">
                 메일 발송 준비 중 <LoadingDots />
               </p>
 
               <ActionButton
                 variant="brandSolid"
                 size="large"
-                className="mt-8 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98]"
+                className="mt-10 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98]"
                 onClick={resetToLanding}
               >
                 처음으로 돌아가기
@@ -415,7 +415,7 @@ export default function LoveFortuneApp() {
 
               <button
                 type="button"
-                className="mt-3 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill py-3 text-[14px] font-semibold text-seed-fg-primary transition-transform duration-150 active:scale-[0.98]"
+                className="mt-4 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill py-3 text-[14px] font-semibold text-seed-fg-primary transition-transform duration-150 active:scale-[0.98]"
                 onClick={() => {
                   setForm(DEFAULT_INPUT);
                   setCaptchaToken("");
