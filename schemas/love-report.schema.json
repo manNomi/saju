@@ -88,33 +88,33 @@
     },
     "summary": {
       "type": "string",
-      "minLength": 30,
-      "maxLength": 500
+      "minLength": 20,
+      "maxLength": 240
     },
     "highlight": {
       "type": "string",
-      "minLength": 30,
-      "maxLength": 500
+      "minLength": 20,
+      "maxLength": 240
     },
     "caution": {
       "type": "string",
-      "minLength": 30,
-      "maxLength": 500
+      "minLength": 20,
+      "maxLength": 240
     },
     "timingHint": {
       "type": "string",
-      "minLength": 20,
-      "maxLength": 500
+      "minLength": 16,
+      "maxLength": 240
     },
     "detailedReport": {
       "type": "string",
-      "minLength": 400,
-      "maxLength": 8000
+      "minLength": 220,
+      "maxLength": 2400
     },
     "detailedSections": {
       "type": "array",
-      "minItems": 4,
-      "maxItems": 8,
+      "minItems": 3,
+      "maxItems": 5,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -127,8 +127,8 @@
           },
           "body": {
             "type": "string",
-            "minLength": 80,
-            "maxLength": 2000
+            "minLength": 60,
+            "maxLength": 650
           }
         }
       }
@@ -136,7 +136,7 @@
     "yearlyGuidance": {
       "type": "array",
       "minItems": 3,
-      "maxItems": 6,
+      "maxItems": 4,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -159,8 +159,8 @@
           },
           "focus": {
             "type": "string",
-            "minLength": 20,
-            "maxLength": 300
+            "minLength": 16,
+            "maxLength": 180
           }
         }
       }
