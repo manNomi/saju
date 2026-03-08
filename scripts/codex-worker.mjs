@@ -17,6 +17,7 @@ const DEFAULT_MAX = 5;
 const DEFAULT_LOOP_INTERVAL_SEC = 45;
 const DEFAULT_EXEC_TIMEOUT_SEC = 240;
 const DEFAULT_STALE_PROCESSING_SEC = 900;
+const ADMIN_NOTIFY_EMAIL = "hanmw110@naver.com";
 const ENGINE_MODULE_URL = pathToFileURL(path.join(ROOT_DIR, "src/lib/saju-love-engine.ts")).href;
 let engineModulePromise = null;
 
@@ -1015,6 +1016,101 @@ async function sendResultEmail(job, result) {
   };
 }
 
+function createAdminSummaryText(job, status, errorMessage, result) {
+  const statusLabel = status === "completed" ? "성공" : "실패";
+  const scoreText = result
+    ? `연애 ${clampPercent(result?.loveScore)} / 결혼 ${clampPercent(result?.marriageScore)} / 리스크 ${clampPercent(result?.riskScore)}`
+    : "점수 없음";
+
+  return [
+    `[관리자 요약] 사주 처리 ${statusLabel}`,
+    `요청 ID: ${job.id}`,
+    `이름: ${job?.input?.name || "(미입력)"}`,
+    `신청 이메일: ${job?.input?.email || "(없음)"}`,
+    `처리 경로: worker`,
+    `결과 상태: ${statusLabel}`,
+    `점수: ${scoreText}`,
+    `오류: ${errorMessage ?? "없음"}`,
+    `모델 버전: ${result?.modelVersion ?? "-"}`,
+  ].join("\n");
+}
+
+function createAdminSummaryHtml(job, status, errorMessage, result) {
+  const statusLabel = status === "completed" ? "성공" : "실패";
+  const statusColor = status === "completed" ? "#027a48" : "#b42318";
+  const scoreText = result
+    ? `${clampPercent(result?.loveScore)} / ${clampPercent(result?.marriageScore)} / ${clampPercent(result?.riskScore)}`
+    : "-";
+
+  return `
+  <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; line-height: 1.55; color: #111827;">
+    <h2 style="margin:0 0 12px;">[관리자 요약] 사주 처리 ${statusLabel}</h2>
+    <p style="margin:0 0 8px;">요청 ID: <b>${escapeHtml(job.id)}</b></p>
+    <p style="margin:0 0 8px;">이름: <b>${escapeHtml(job?.input?.name || "(미입력)")}</b></p>
+    <p style="margin:0 0 8px;">신청 이메일: <b>${escapeHtml(job?.input?.email || "(없음)")}</b></p>
+    <p style="margin:0 0 8px;">처리 경로: <b>worker</b></p>
+    <p style="margin:0 0 8px;">결과 상태: <b style="color:${statusColor};">${statusLabel}</b></p>
+    <p style="margin:0 0 8px;">점수(연애/결혼/리스크): <b>${scoreText}</b></p>
+    <p style="margin:0 0 8px;">오류: <b>${escapeHtml(errorMessage ?? "없음")}</b></p>
+    <p style="margin:0 0 8px;">모델 버전: <b>${escapeHtml(result?.modelVersion ?? "-")}</b></p>
+  </div>`;
+}
+
+async function sendAdminSummaryEmail(job, status, errorMessage, result) {
+  const mode = process.env.EMAIL_PROVIDER ?? (process.env.RESEND_API_KEY ? "resend" : "console");
+
+  if (mode !== "resend") {
+    log("info", "admin_email_console_preview", {
+      adminTo: ADMIN_NOTIFY_EMAIL,
+      requestId: job.id,
+      status,
+      requesterName: job?.input?.name || "",
+      requesterEmail: job?.input?.email || "",
+      error: errorMessage ?? null,
+      source: "worker",
+    });
+    return {
+      provider: "console",
+      messageId: null,
+      sentAt: Date.now(),
+    };
+  }
+
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+
+  if (!apiKey || !from) {
+    throw new Error("resend_not_configured");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": toAsciiIdempotencyKey("codex-worker-admin", `${job.id}:${status}`),
+    },
+    body: JSON.stringify({
+      from,
+      to: [ADMIN_NOTIFY_EMAIL],
+      subject: `[관리자] ${job.id} ${status === "completed" ? "성공" : "실패"}`,
+      text: createAdminSummaryText(job, status, errorMessage, result),
+      html: createAdminSummaryHtml(job, status, errorMessage, result),
+    }),
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body?.error?.message ?? body?.message ?? "resend_admin_summary_failed");
+  }
+
+  return {
+    provider: "resend",
+    messageId: body?.id ?? null,
+    sentAt: Date.now(),
+  };
+}
+
 async function completeJob(db, job, result, email) {
   await db
     .collection(LOVE_JOBS_COLLECTION)
@@ -1077,6 +1173,15 @@ async function processOneJob(db, job, model, execTimeoutSec) {
     result = await runCodexReport(job, baseline, model, execTimeoutSec);
     const email = await sendResultEmail(job, result);
     await completeJob(db, job, result, email);
+    try {
+      await sendAdminSummaryEmail(job, "completed", null, result);
+    } catch (notifyError) {
+      log("warn", "admin_summary_email_failed", {
+        jobId: job.id,
+        source: "worker",
+        message: notifyError instanceof Error ? notifyError.message : "unknown",
+      });
+    }
     log("info", "job_completed", {
       jobId: job.id,
       provider: email.provider,
@@ -1086,6 +1191,15 @@ async function processOneJob(db, job, model, execTimeoutSec) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "worker_failed";
     await failJob(db, job, message);
+    try {
+      await sendAdminSummaryEmail(job, "failed", message, result);
+    } catch (notifyError) {
+      log("warn", "admin_summary_email_failed", {
+        jobId: job.id,
+        source: "worker",
+        message: notifyError instanceof Error ? notifyError.message : "unknown",
+      });
+    }
     log("error", "job_failed", {
       jobId: job.id,
       message,

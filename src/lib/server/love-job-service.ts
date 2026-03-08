@@ -8,8 +8,9 @@ import {
   getLoveJobById,
   updateLoveJob,
 } from "@/lib/server/firestore-repo";
-import { sendLoveResultEmail } from "@/lib/server/email";
+import { sendAdminJobSummaryEmail, sendLoveResultEmail } from "@/lib/server/email";
 import { hashToken, verifyToken } from "@/lib/server/hash";
+import { logEvent } from "@/lib/server/monitoring";
 
 function defaultInput(input: LoveJobInput): LoveJobInput {
   return {
@@ -197,6 +198,24 @@ export async function processLoveJob(jobId: string) {
         error: null,
       },
     });
+
+    try {
+      await sendAdminJobSummaryEmail({
+        requestId: job.id,
+        requesterName: job.input.name,
+        requesterEmail: job.input.email,
+        status: "completed",
+        error: null,
+        source: "api",
+        result,
+      });
+    } catch (notifyError) {
+      logEvent("warn", "admin_summary_email_failed", {
+        requestId: job.id,
+        source: "api",
+        message: notifyError instanceof Error ? notifyError.message : "unknown",
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "analysis_or_email_failed";
 
@@ -216,6 +235,24 @@ export async function processLoveJob(jobId: string) {
         error: sentEmail ? null : message,
       },
     });
+
+    try {
+      await sendAdminJobSummaryEmail({
+        requestId: job.id,
+        requesterName: job.input.name,
+        requesterEmail: job.input.email,
+        status: sentEmail ? "completed" : "failed",
+        error: sentEmail ? null : message,
+        source: "api",
+        result,
+      });
+    } catch (notifyError) {
+      logEvent("warn", "admin_summary_email_failed", {
+        requestId: job.id,
+        source: "api",
+        message: notifyError instanceof Error ? notifyError.message : "unknown",
+      });
+    }
   }
 
   const refreshed = await getLoveJobById(job.id);
