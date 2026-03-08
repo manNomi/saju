@@ -68,7 +68,7 @@ function TopBar({ title, onBack }: { title: string; onBack?: () => void }) {
 }
 
 function legalLinkClass() {
-  return "inline-flex items-center rounded-lg border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2 text-[12px] text-seed-fg-subtle underline underline-offset-2";
+  return "inline-flex items-center justify-center rounded-xl border border-seed-stroke-subtle bg-seed-bg-fill px-4 py-2.5 text-[12px] text-seed-fg-subtle underline underline-offset-2";
 }
 
 export default function LoveFortuneApp() {
@@ -164,7 +164,7 @@ export default function LoveFortuneApp() {
               무료입니다 지금.
             </Text>
 
-            <div className="mt-5 grid grid-cols-3 gap-3">
+            <div className="mt-6 grid grid-cols-3 gap-4">
               <p className="rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2.5 text-center text-[12px] font-medium text-seed-fg-primary">
                 무로그인
               </p>
@@ -179,14 +179,14 @@ export default function LoveFortuneApp() {
             <ActionButton
               variant="brandSolid"
               size="large"
-              className="mt-6 w-full !min-h-[52px]"
+              className="mt-8 w-full !min-h-[54px]"
               onClick={() => setStep("input")}
             >
               무료로 시작하기
             </ActionButton>
           </section>
 
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-3.5">
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
             <Link className={legalLinkClass()} href="/privacy">
               개인정보 처리방침
             </Link>
@@ -246,7 +246,7 @@ export default function LoveFortuneApp() {
                 />
               </TextField.Root>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-5 grid grid-cols-2 gap-4">
                 <div>
                   <label className="mb-2 block text-[13px] font-bold text-seed-fg-primary">성별</label>
                   <select
@@ -289,7 +289,7 @@ export default function LoveFortuneApp() {
               <ActionButton
                 variant="brandSolid"
                 size="large"
-                className="mt-6 w-full !min-h-[52px]"
+                className="mt-8 w-full !min-h-[54px]"
                 onClick={submit}
               >
                 요청 등록하기
@@ -318,7 +318,7 @@ export default function LoveFortuneApp() {
               <ActionButton
                 variant="brandSolid"
                 size="large"
-                className="mt-6 w-full !min-h-[52px]"
+                className="mt-8 w-full !min-h-[54px]"
                 onClick={() => {
                   setForm(DEFAULT_INPUT);
                   setCaptchaToken("");
