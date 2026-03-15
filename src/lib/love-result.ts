@@ -41,8 +41,8 @@ function applyOptimisticPromo(result: LoveJobResult): LoveJobResult {
 
   const boostedTopYearsRaw = result.topYears.map((row, idx) => ({
     ...row,
-    loveChance: clamp01(Math.max(row.loveChance, idx === 0 ? 0.78 : 0.71)),
-    breakupRisk: clamp01(Math.min(row.breakupRisk, idx === 0 ? 0.3 : 0.38)),
+    loveChance: clamp01(Math.max(row.loveChance, idx === 0 ? 0.9 : 0.84)),
+    breakupRisk: clamp01(Math.min(row.breakupRisk, idx === 0 ? 0.22 : 0.3)),
   }));
 
   const boostedTopYears = boostedTopYearsRaw.some((row) => row.year === safeYear)
@@ -51,15 +51,15 @@ function applyOptimisticPromo(result: LoveJobResult): LoveJobResult {
         ...boostedTopYearsRaw.slice(1),
         {
           year: safeYear,
-          loveChance: 0.79,
-          breakupRisk: 0.28,
+          loveChance: 0.92,
+          breakupRisk: 0.2,
         },
       ].sort((a, b) => a.year - b.year);
 
   const boostedYearGuideRaw = result.yearlyGuidance.map((row) => ({
     ...row,
-    loveChance: clamp01(Math.max(row.loveChance, 0.67)),
-    breakupRisk: clamp01(Math.min(row.breakupRisk, 0.43)),
+    loveChance: clamp01(Math.max(row.loveChance, 0.8)),
+    breakupRisk: clamp01(Math.min(row.breakupRisk, 0.35)),
   }));
 
   const boostedYearGuide = boostedYearGuideRaw.some((row) => row.year === safeYear)
@@ -67,9 +67,9 @@ function applyOptimisticPromo(result: LoveJobResult): LoveJobResult {
         row.year === safeYear
           ? {
               ...row,
-              loveChance: clamp01(Math.max(row.loveChance, 0.76)),
-              breakupRisk: clamp01(Math.min(row.breakupRisk, 0.31)),
-              focus: "기존에는 답답했더라도 올해부터 관계운이 풀리는 상승 구간입니다. 소개/약속을 적극적으로 잡아보세요.",
+              loveChance: clamp01(Math.max(row.loveChance, 0.9)),
+              breakupRisk: clamp01(Math.min(row.breakupRisk, 0.22)),
+              focus: "올해부터 연애운이 크게 반등하는 구간입니다. 소개팅/소개 자리에서 먼저 웃으며 대화를 열면 성과가 빠르게 붙습니다.",
             }
           : row,
       )
@@ -77,9 +77,9 @@ function applyOptimisticPromo(result: LoveJobResult): LoveJobResult {
         ...boostedYearGuideRaw.slice(1),
         {
           year: safeYear,
-          loveChance: 0.76,
-          breakupRisk: 0.31,
-          focus: "기존에는 답답했더라도 올해부터 관계운이 풀리는 상승 구간입니다. 소개/약속을 적극적으로 잡아보세요.",
+          loveChance: 0.9,
+          breakupRisk: 0.22,
+          focus: "올해부터 연애운이 크게 반등하는 구간입니다. 소개팅/소개 자리에서 먼저 웃으며 대화를 열면 성과가 빠르게 붙습니다.",
         },
       ].sort((a, b) => a.year - b.year);
 
@@ -87,7 +87,7 @@ function applyOptimisticPromo(result: LoveJobResult): LoveJobResult {
     idx === 0
       ? {
           ...section,
-          body: `기존에는 연애운이 다소 낮게 느껴질 수 있었지만, 올해부터는 흐름이 완만하게 풀리는 상승 국면입니다. 점수 기준도 이전 대비 회복 신호가 분명해 관계 진전 가능성이 높아졌습니다. 서두르기보다 만남의 빈도와 약속의 일관성을 높이면 성과가 더 안정적으로 쌓입니다.`,
+          body: `기존에는 연애운이 다소 낮게 느껴질 수 있었지만, 올해부터는 확실한 반등 흐름으로 전환됩니다. 특히 오늘은 첫인상 운과 대화 운이 같이 올라와 새로운 만남에서 호감 신호를 만들기 좋은 타이밍입니다. 가볍고 밝은 톤으로 먼저 대화를 열면 관계 진전 속도가 눈에 띄게 빨라질 수 있습니다.`,
         }
       : section,
   );
@@ -96,15 +96,15 @@ function applyOptimisticPromo(result: LoveJobResult): LoveJobResult {
 
   return {
     ...result,
-    loveScore: Math.max(result.loveScore, 68),
-    marriageScore: Math.max(result.marriageScore, 64),
-    riskScore: Math.min(result.riskScore, 45),
+    loveScore: Math.max(result.loveScore, 92),
+    marriageScore: Math.max(result.marriageScore, 88),
+    riskScore: Math.min(result.riskScore, 28),
     topYears: boostedTopYears,
     yearlyGuidance: boostedYearGuide,
-    summary: "기존에는 연애운이 답답하게 느껴질 수 있었지만, 올해부터는 흐름이 점진적으로 풀리며 관계운이 상승하는 국면입니다.",
-    highlight: "올해를 기점으로 인연 유입과 관계 진전 신호가 동시에 살아납니다. 무리한 속도전보다 꾸준한 만남이 좋은 결과로 이어집니다.",
-    caution: "분위기가 좋아져도 초반 약속과 연락 리듬은 분명히 맞춰 두세요. 그러면 상승 흐름을 더 안정적으로 유지할 수 있습니다.",
-    timingHint: "올해부터 연애/관계 지표가 상승 전환으로 들어갑니다. 특히 하반기로 갈수록 체감이 더 좋아질 수 있어요.",
+    summary: "기존의 답답한 흐름이 올해부터 강하게 풀리며 연애운이 눈에 띄게 상승하는 국면입니다. 오늘은 특히 첫인상과 대화 운이 좋은 날입니다.",
+    highlight: "올해를 기점으로 인연 유입과 관계 진전 신호가 크게 강화됐습니다. 소개팅/소개 자리에서 자연스럽게 리드하면 높은 확률로 좋은 반응을 받을 수 있어요.",
+    caution: "운이 좋은 날일수록 과한 어필보다 밝고 편안한 대화 리듬을 유지해 보세요. 그 편이 호감도를 더 오래 끌고 갑니다.",
+    timingHint: "올해부터 연애 지표가 고점 구간으로 들어갑니다. 오늘 같은 만남 자리에서 먼저 말을 건네면 성과가 더 빠르게 나타납니다.",
     detailedSections: boostedSections,
     detailedReport: boostedDetailedReport,
     evidenceCodes: Array.from(new Set([...result.evidenceCodes, "R_PROMO_20260315"])),

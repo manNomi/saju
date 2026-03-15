@@ -114,7 +114,7 @@ function TopBar({ title, onBack }: { title: string; onBack?: () => void }) {
 }
 
 function legalLinkClass() {
-  return "inline-flex items-center justify-center rounded-full border border-seed-stroke-subtle bg-seed-bg-fill px-3 py-2 text-[12px] text-seed-fg-subtle underline underline-offset-2 transition-transform duration-150 active:scale-[0.98]";
+  return "inline-flex items-center justify-center rounded-full border border-seed-stroke-subtle bg-seed-bg-fill px-4 py-2.5 text-[12px] text-seed-fg-subtle underline underline-offset-2 transition-transform duration-150 active:scale-[0.98]";
 }
 
 export default function LoveFortuneApp() {
@@ -214,7 +214,7 @@ export default function LoveFortuneApp() {
             </div>
           </header>
 
-          <ScreenFrame className="pb-[calc(var(--seed-safe-area-bottom)+124px)]">
+          <ScreenFrame>
             <section className="relative overflow-hidden rounded-[30px] border border-seed-stroke-subtle bg-seed-bg-floating p-6 shadow-card motion-safe:animate-card-rise">
               <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-seed-bg-brand-weak/80" />
               <div className="pointer-events-none absolute -bottom-10 -left-7 h-24 w-24 rounded-full bg-seed-bg-brand-weak/70" />
@@ -259,7 +259,7 @@ export default function LoveFortuneApp() {
               </ul>
             </section>
 
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3.5">
               <Link className={legalLinkClass()} href="/privacy">
                 개인정보 처리방침
               </Link>
@@ -270,10 +270,8 @@ export default function LoveFortuneApp() {
                 이용 안내
               </Link>
             </div>
-          </ScreenFrame>
 
-          <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-[var(--seed-color-bg-layer-default)] via-[var(--seed-color-bg-layer-default)]/95 to-transparent px-4 pb-[calc(var(--seed-safe-area-bottom)+14px)] pt-9">
-            <div className="mx-auto w-full max-w-[430px]">
+            <div className="mt-10 rounded-3xl border border-seed-stroke-subtle bg-seed-bg-floating p-4 shadow-card">
               <ActionButton
                 variant="brandSolid"
                 size="large"
@@ -282,9 +280,9 @@ export default function LoveFortuneApp() {
               >
                 무료로 시작하기
               </ActionButton>
-              <p className="mt-2 text-center text-[12px] text-seed-fg-subtle">입력은 1분 내로 끝나요</p>
+              <p className="mt-3 text-center text-[12px] text-seed-fg-subtle">입력은 1분 내로 끝나요</p>
             </div>
-          </div>
+          </ScreenFrame>
         </>
       )}
 
@@ -394,7 +392,7 @@ export default function LoveFortuneApp() {
               <ActionButton
                 variant="brandSolid"
                 size="large"
-                className="mt-8 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98]"
+                className="mt-9 w-full !min-h-[54px] transition-transform duration-150 active:scale-[0.98]"
                 onClick={submit}
                 disabled={isSubmitting}
               >
@@ -409,7 +407,7 @@ export default function LoveFortuneApp() {
 
               <button
                 type="button"
-                className="mt-3 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill py-3 text-[14px] font-semibold text-seed-fg-primary transition-transform duration-150 active:scale-[0.98]"
+                className="mt-5 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill py-3 text-[14px] font-semibold text-seed-fg-primary transition-transform duration-150 active:scale-[0.98]"
                 onClick={() => setForm(DEFAULT_INPUT)}
               >
                 입력 초기화
@@ -452,13 +450,13 @@ export default function LoveFortuneApp() {
               </p>
               <p className="mt-3 text-xs text-seed-fg-subtle">메일 수신함과 스팸함을 함께 확인해 주세요.</p>
 
-              <ActionButton variant="brandSolid" size="large" className="mt-8 w-full !min-h-[54px]" onClick={resetToLanding}>
+              <ActionButton variant="brandSolid" size="large" className="mt-10 w-full !min-h-[54px]" onClick={resetToLanding}>
                 처음으로 돌아가기
               </ActionButton>
 
               <button
                 type="button"
-                className="mt-4 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill py-3 text-[14px] font-semibold text-seed-fg-primary transition-transform duration-150 active:scale-[0.98]"
+                className="mt-6 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill py-3 text-[14px] font-semibold text-seed-fg-primary transition-transform duration-150 active:scale-[0.98]"
                 onClick={() => {
                   setForm(DEFAULT_INPUT);
                   setCaptchaToken("");
