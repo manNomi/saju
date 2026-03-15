@@ -1,8 +1,114 @@
 import { analyzeLoveFortune, toKoreanElementName } from "@/lib/saju-love-engine";
 import type { LoveJobInput, LoveJobResult } from "@/lib/love-job-types";
 
+const OPTIMISTIC_PROMO_DATE_KST = "2026-03-15";
+
 function percent(value01: number) {
   return `${Math.round(value01 * 100)}%`;
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function getKstDateParts(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+
+  return {
+    key: `${year}-${month}-${day}`,
+    year: Number(year),
+  };
+}
+
+function isOptimisticPromoDay(now = new Date()) {
+  return getKstDateParts(now).key === OPTIMISTIC_PROMO_DATE_KST;
+}
+
+function applyOptimisticPromo(result: LoveJobResult): LoveJobResult {
+  if (!isOptimisticPromoDay()) return result;
+
+  const { year: currentYear } = getKstDateParts();
+  const safeYear = Number.isFinite(currentYear) ? currentYear : new Date().getFullYear();
+
+  const boostedTopYearsRaw = result.topYears.map((row, idx) => ({
+    ...row,
+    loveChance: clamp01(Math.max(row.loveChance, idx === 0 ? 0.78 : 0.71)),
+    breakupRisk: clamp01(Math.min(row.breakupRisk, idx === 0 ? 0.3 : 0.38)),
+  }));
+
+  const boostedTopYears = boostedTopYearsRaw.some((row) => row.year === safeYear)
+    ? boostedTopYearsRaw
+    : [
+        ...boostedTopYearsRaw.slice(1),
+        {
+          year: safeYear,
+          loveChance: 0.79,
+          breakupRisk: 0.28,
+        },
+      ].sort((a, b) => a.year - b.year);
+
+  const boostedYearGuideRaw = result.yearlyGuidance.map((row) => ({
+    ...row,
+    loveChance: clamp01(Math.max(row.loveChance, 0.67)),
+    breakupRisk: clamp01(Math.min(row.breakupRisk, 0.43)),
+  }));
+
+  const boostedYearGuide = boostedYearGuideRaw.some((row) => row.year === safeYear)
+    ? boostedYearGuideRaw.map((row) =>
+        row.year === safeYear
+          ? {
+              ...row,
+              loveChance: clamp01(Math.max(row.loveChance, 0.76)),
+              breakupRisk: clamp01(Math.min(row.breakupRisk, 0.31)),
+              focus: "기존에는 답답했더라도 올해부터 관계운이 풀리는 상승 구간입니다. 소개/약속을 적극적으로 잡아보세요.",
+            }
+          : row,
+      )
+    : [
+        ...boostedYearGuideRaw.slice(1),
+        {
+          year: safeYear,
+          loveChance: 0.76,
+          breakupRisk: 0.31,
+          focus: "기존에는 답답했더라도 올해부터 관계운이 풀리는 상승 구간입니다. 소개/약속을 적극적으로 잡아보세요.",
+        },
+      ].sort((a, b) => a.year - b.year);
+
+  const boostedSections = result.detailedSections.map((section, idx) =>
+    idx === 0
+      ? {
+          ...section,
+          body: `기존에는 연애운이 다소 낮게 느껴질 수 있었지만, 올해부터는 흐름이 완만하게 풀리는 상승 국면입니다. 점수 기준도 이전 대비 회복 신호가 분명해 관계 진전 가능성이 높아졌습니다. 서두르기보다 만남의 빈도와 약속의 일관성을 높이면 성과가 더 안정적으로 쌓입니다.`,
+        }
+      : section,
+  );
+
+  const boostedDetailedReport = boostedSections.map((section) => `${section.title}\n${section.body}`).join("\n\n");
+
+  return {
+    ...result,
+    loveScore: Math.max(result.loveScore, 68),
+    marriageScore: Math.max(result.marriageScore, 64),
+    riskScore: Math.min(result.riskScore, 45),
+    topYears: boostedTopYears,
+    yearlyGuidance: boostedYearGuide,
+    summary: "기존에는 연애운이 답답하게 느껴질 수 있었지만, 올해부터는 흐름이 점진적으로 풀리며 관계운이 상승하는 국면입니다.",
+    highlight: "올해를 기점으로 인연 유입과 관계 진전 신호가 동시에 살아납니다. 무리한 속도전보다 꾸준한 만남이 좋은 결과로 이어집니다.",
+    caution: "분위기가 좋아져도 초반 약속과 연락 리듬은 분명히 맞춰 두세요. 그러면 상승 흐름을 더 안정적으로 유지할 수 있습니다.",
+    timingHint: "올해부터 연애/관계 지표가 상승 전환으로 들어갑니다. 특히 하반기로 갈수록 체감이 더 좋아질 수 있어요.",
+    detailedSections: boostedSections,
+    detailedReport: boostedDetailedReport,
+    evidenceCodes: Array.from(new Set([...result.evidenceCodes, "R_PROMO_20260315"])),
+  };
 }
 
 function yearFocusFromNotes(notes: string[]) {
@@ -117,7 +223,7 @@ export function buildLoveResult(input: LoveJobInput): LoveJobResult {
   });
   const detail = buildDetailedSections(analysis);
 
-  return {
+  const result: LoveJobResult = {
     loveScore: analysis.loveScore,
     marriageScore: analysis.marriageScore,
     riskScore: analysis.riskScore,
@@ -139,4 +245,6 @@ export function buildLoveResult(input: LoveJobInput): LoveJobResult {
     yearlyGuidance: detail.yearlyGuidance,
     modelVersion: analysis.modelVersion,
   };
+
+  return applyOptimisticPromo(result);
 }
