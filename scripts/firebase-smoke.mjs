@@ -30,6 +30,7 @@ async function main() {
         name: "smoke",
         email: "smoke@example.com",
         gender: "female",
+        relationshipStatus: "single",
         calendarType: "solar",
         birthDate: "1992-05-12",
         birthTime: "09:30",

@@ -38,6 +38,8 @@ function normalizeBirthInput(rawInput) {
     birthDate: String(rawInput?.birthDate ?? ""),
     birthTime: String(rawInput?.birthTime ?? ""),
     gender: rawInput?.gender === "male" ? "male" : "female",
+    relationshipStatus:
+      rawInput?.relationshipStatus === "in_relationship" ? "in_relationship" : "single",
     calendarType: rawInput?.calendarType === "lunar" ? "lunar" : "solar",
     birthPlace: String(rawInput?.birthPlace ?? "대한민국"),
   };
@@ -60,6 +62,12 @@ async function buildEngineBaseline(job) {
       loveChance: row.loveChance,
       breakupRisk: row.breakupRisk,
     })),
+    topYearSignals: analysis.topYears.map((row) => ({
+      year: row.year,
+      notes: row.notes,
+    })),
+    diagnostics: analysis.diagnostics ?? null,
+    traces: Array.isArray(analysis.traces) ? analysis.traces : [],
     evidenceCodes: analysis.evidenceCodes,
     modelVersion: analysis.modelVersion,
   };
@@ -407,8 +415,8 @@ function applyTodayOptimisticBoost(result) {
   const topYearsBase = Array.isArray(result?.topYears) ? result.topYears : [];
   const topYearsRaised = topYearsBase.map((row, idx) => ({
     ...row,
-    loveChance: clamp01(Math.max(row?.loveChance ?? 0, idx === 0 ? 0.9 : 0.84)),
-    breakupRisk: clamp01(Math.min(row?.breakupRisk ?? 1, idx === 0 ? 0.22 : 0.3)),
+    loveChance: clamp01(Math.max(row?.loveChance ?? 0, idx === 0 ? 0.84 : 0.76)),
+    breakupRisk: clamp01(Math.min(row?.breakupRisk ?? 1, idx === 0 ? 0.28 : 0.36)),
   }));
 
   const topYears = topYearsRaised.some((row) => row.year === safeYear)
@@ -416,15 +424,15 @@ function applyTodayOptimisticBoost(result) {
     : topYearsRaised.length >= 3
       ? [
           ...topYearsRaised.slice(1),
-          { year: safeYear, loveChance: 0.92, breakupRisk: 0.2 },
+          { year: safeYear, loveChance: 0.85, breakupRisk: 0.27 },
         ].sort((a, b) => a.year - b.year)
       : topYearsRaised;
 
   const yearlyGuidanceBase = Array.isArray(result?.yearlyGuidance) ? result.yearlyGuidance : [];
   const yearlyGuidanceRaised = yearlyGuidanceBase.map((row) => ({
     ...row,
-    loveChance: clamp01(Math.max(row?.loveChance ?? 0, 0.8)),
-    breakupRisk: clamp01(Math.min(row?.breakupRisk ?? 1, 0.35)),
+    loveChance: clamp01(Math.max(row?.loveChance ?? 0, 0.72)),
+    breakupRisk: clamp01(Math.min(row?.breakupRisk ?? 1, 0.4)),
   }));
 
   const yearlyGuidance = yearlyGuidanceRaised.some((row) => row.year === safeYear)
@@ -432,9 +440,9 @@ function applyTodayOptimisticBoost(result) {
         row.year === safeYear
           ? {
               ...row,
-              loveChance: clamp01(Math.max(row?.loveChance ?? 0, 0.9)),
-              breakupRisk: clamp01(Math.min(row?.breakupRisk ?? 1, 0.22)),
-              focus: "올해부터 연애운이 크게 반등하는 구간입니다. 소개팅/소개 자리에서 먼저 웃으며 대화를 열면 성과가 빠르게 붙습니다.",
+              loveChance: clamp01(Math.max(row?.loveChance ?? 0, 0.82)),
+              breakupRisk: clamp01(Math.min(row?.breakupRisk ?? 1, 0.28)),
+              focus: "3월을 기점으로 연애 흐름이 점차 좋아지는 구간입니다. 대화 리듬을 안정적으로 가져가면 관계 진전이 수월합니다.",
             }
           : row,
       )
@@ -443,9 +451,9 @@ function applyTodayOptimisticBoost(result) {
           ...yearlyGuidanceRaised.slice(1),
           {
             year: safeYear,
-            loveChance: 0.9,
-            breakupRisk: 0.22,
-            focus: "올해부터 연애운이 크게 반등하는 구간입니다. 소개팅/소개 자리에서 먼저 웃으며 대화를 열면 성과가 빠르게 붙습니다.",
+            loveChance: 0.82,
+            breakupRisk: 0.28,
+            focus: "3월을 기점으로 연애 흐름이 점차 좋아지는 구간입니다. 대화 리듬을 안정적으로 가져가면 관계 진전이 수월합니다.",
           },
         ].sort((a, b) => a.year - b.year)
       : yearlyGuidanceRaised;
@@ -455,7 +463,7 @@ function applyTodayOptimisticBoost(result) {
     idx === 0
       ? {
           ...section,
-          body: "기존에는 연애운이 다소 낮게 느껴질 수 있었지만, 올해부터는 확실한 반등 흐름으로 전환됩니다. 특히 오늘은 첫인상 운과 대화 운이 같이 올라와 새로운 만남에서 호감 신호를 만들기 좋은 타이밍입니다. 가볍고 밝은 톤으로 먼저 대화를 열면 관계 진전 속도가 눈에 띄게 빨라질 수 있습니다.",
+          body: "기존에는 연애운이 다소 낮게 느껴졌더라도, 3월을 기점으로 흐름이 완만하게 개선되는 구간입니다. 관계의 템포를 너무 서두르지 않고 안정적으로 맞추면 호감이 자연스럽게 쌓이기 좋습니다. 작은 약속을 꾸준히 지키는 방식이 실제 관계 진전에 더 유리하게 작동합니다.",
         }
       : section,
   );
@@ -464,17 +472,17 @@ function applyTodayOptimisticBoost(result) {
 
   return {
     ...result,
-    loveScore: Math.max(Number(result?.loveScore ?? 0), 92),
-    marriageScore: Math.max(Number(result?.marriageScore ?? 0), 88),
-    riskScore: Math.min(Number(result?.riskScore ?? 100), 28),
+    loveScore: Math.max(Number(result?.loveScore ?? 0), 84),
+    marriageScore: Math.max(Number(result?.marriageScore ?? 0), 78),
+    riskScore: Math.min(Number(result?.riskScore ?? 100), 36),
     topYears,
     yearlyGuidance,
-    summary: "기존의 답답한 흐름이 올해부터 강하게 풀리며 연애운이 눈에 띄게 상승하는 국면입니다. 오늘은 특히 첫인상과 대화 운이 좋은 날입니다.",
+    summary: "기존에 더디게 느껴지던 연애 흐름이 3월을 기점으로 완만하게 좋아지는 국면입니다.",
     highlight:
-      "올해를 기점으로 인연 유입과 관계 진전 신호가 크게 강화됐습니다. 소개팅/소개 자리에서 자연스럽게 리드하면 높은 확률로 좋은 반응을 받을 수 있어요.",
+      "3월 이후 인연 유입과 관계 진전 신호가 점진적으로 강화되고 있습니다. 안정적인 대화 템포가 강점으로 작용합니다.",
     caution:
-      "운이 좋은 날일수록 과한 어필보다 밝고 편안한 대화 리듬을 유지해 보세요. 그 편이 호감도를 더 오래 끌고 갑니다.",
-    timingHint: "올해부터 연애 지표가 고점 구간으로 들어갑니다. 오늘 같은 만남 자리에서 먼저 말을 건네면 성과가 더 빠르게 나타납니다.",
+      "분위기가 좋아지는 구간에서도 과한 어필보다 편안하고 일관된 태도를 유지하면 흐름을 더 길게 가져갈 수 있습니다.",
+    timingHint: "3월을 기점으로 연애 지표가 상승 전환에 들어갑니다. 급하게 결론 내리기보다 자연스러운 속도로 관계를 이어가 보세요.",
     detailedSections,
     detailedReport,
     evidenceCodes: Array.from(new Set([...(Array.isArray(result?.evidenceCodes) ? result.evidenceCodes : []), "R_PROMO_20260315"])),
@@ -515,8 +523,12 @@ function buildCodexPrompt(job, baseline) {
     "- yearlyGuidance.focus는 해당 연도에 실제로 실천할 행동 1~2개를 포함하라.",
     "- 전체 분량은 필요한 정보만 담아 짧게 유지하라. 같은 의미 반복은 금지한다.",
     "- detailedSections는 3~4개 중심으로 작성하고, 각 body는 3~4문장 내외로 제한하라.",
+    "- 평이한 문장 반복을 금지한다. 근거 없는 일반론 대신 사주 근거를 먼저 제시하고 행동 제안을 붙여라.",
+    "- detailedSections 전체에서 최소 3개 이상의 구체 근거를 반드시 언급하라: 배우자궁 합/충/형/해/파, 배우자별, 도화, 홍란, 홍염, 일간 강약 중에서 선택.",
     "- '갈등 리스크'는 관계에서 오해·다툼·거리감이 커질 가능성임을 쉬운 말로 설명하라.",
     "- 리스크 퍼센트가 높을수록 무엇을 조심해야 하는지 구체적 주의 행동을 제시하라.",
+    "- relationshipStatus가 in_relationship이면 현재 연애 상대와의 관계 유지/회복/진전 중심으로 작성하고, 새로운 인연 탐색 중심 문장은 최소화하라.",
+    "- relationshipStatus가 single이면 인연 유입과 관계 시작/초기 설계 중심으로 작성하라.",
     `- 연도 가이드는 ${nowYear}년 ~ ${nowYear + 9}년 범위에서 작성하라.`,
     "- loveScore, marriageScore, riskScore, confidence, dominantElement, weakestElement, topYears는 아래 baseline 값을 그대로 사용하라.",
     "- evidenceCodes는 baseline에 있는 코드들을 우선 유지하라.",
@@ -532,6 +544,7 @@ function buildCodexPrompt(job, baseline) {
         requestId: job.id,
         name: job?.input?.name ?? "",
         gender: job?.input?.gender ?? "",
+        relationshipStatus: job?.input?.relationshipStatus ?? "single",
         calendarType: job?.input?.calendarType ?? "",
         birthDate: job?.input?.birthDate ?? "",
         birthTime: job?.input?.birthTime ?? "",
@@ -551,6 +564,9 @@ function buildCodexPrompt(job, baseline) {
         dominantElement: baseline.dominantElement,
         weakestElement: baseline.weakestElement,
         topYears: baseline.topYears,
+        topYearSignals: baseline.topYearSignals,
+        diagnostics: baseline.diagnostics,
+        traces: baseline.traces,
         evidenceCodes: baseline.evidenceCodes,
         modelVersion: baseline.modelVersion,
       },
@@ -764,10 +780,10 @@ function renderRiskBandRows(currentScore) {
       })();
 
       return `
-        <tr style="${active ? "background:#fff7ed;" : "background:#ffffff;"}">
-          <td style="padding:12px 10px;border-top:1px solid #f0f2f5;font-size:13px;color:#344054;font-weight:${active ? 700 : 500};">${band.range}</td>
-          <td style="padding:12px 10px;border-top:1px solid #f0f2f5;font-size:13px;color:#344054;font-weight:${active ? 700 : 500};">${band.label}</td>
-          <td style="padding:12px 10px;border-top:1px solid #f0f2f5;font-size:13px;color:#475467;line-height:1.55;">${band.advice}</td>
+        <tr style="${active ? "background:#f3e8d4;" : "background:#fffaf1;"}">
+          <td style="padding:12px 10px;border-top:1px solid #d9ccb4;font-size:13px;color:#4b3a27;font-weight:${active ? 700 : 500};">${band.range}</td>
+          <td style="padding:12px 10px;border-top:1px solid #d9ccb4;font-size:13px;color:#4b3a27;font-weight:${active ? 700 : 500};">${band.label}</td>
+          <td style="padding:12px 10px;border-top:1px solid #d9ccb4;font-size:13px;color:#5a4631;line-height:1.55;">${band.advice}</td>
         </tr>
       `;
     })
@@ -779,12 +795,12 @@ function renderScoreCard(label, score, fillColor) {
   const safeLabel = escapeHtml(label);
   return `
     <td width="33.33%" style="padding:8px;">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#ffffff;border:1px solid #eaecf0;border-radius:${CARD_RADIUS};">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fffaf1;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};">
         <tr>
           <td style="padding:16px;min-height:124px;vertical-align:top;">
-            <div style="font-size:13px;color:#667085;margin-bottom:8px;font-weight:600;">${safeLabel}</div>
-            <div style="font-size:24px;font-weight:800;color:#101828;line-height:1.2;">${safeScore}<span style="font-size:13px;color:#667085;"> / 100</span></div>
-            <div style="margin-top:12px;height:8px;background:#eef2f6;border-radius:999px;overflow:hidden;">
+            <div style="font-size:13px;color:#6e4c28;margin-bottom:8px;font-weight:600;">${safeLabel}</div>
+            <div style="font-size:24px;font-weight:800;color:#4b3a27;line-height:1.2;">${safeScore}<span style="font-size:13px;color:#6e4c28;"> / 100</span></div>
+            <div style="margin-top:12px;height:8px;background:#e9dcc6;border-radius:999px;overflow:hidden;">
               <div style="width:${safeScore}%;height:100%;background:${fillColor};"></div>
             </div>
           </td>
@@ -824,7 +840,7 @@ function createEmailText(job, result, name) {
       : "";
 
   return [
-    `${name}님의 연애운 분석 결과`,
+    `${name}님의 연애운 풀이서`,
     `요청 ID: ${job.id}`,
     `연애 점수: ${clampPercent(result?.loveScore)} / 100`,
     `결혼 안정성: ${clampPercent(result?.marriageScore)} / 100`,
@@ -832,7 +848,7 @@ function createEmailText(job, result, name) {
     `갈등 리스크 의미: ${riskProfile.meaning}`,
     `주의할 점: ${riskProfile.caution}`,
     "",
-    "[리스크 구간 해석]",
+    "[갈등 기운 구간 해석]",
     "- 0~29%: 낮음 / 연락 템포 유지",
     "- 30~59%: 보통 / 서운함 빠르게 정리",
     "- 60~79%: 높음 / 감정 올라올 때 결론 미루기",
@@ -846,7 +862,7 @@ function createEmailText(job, result, name) {
     yearlyText,
     sectionText,
     "",
-    `모델 버전: ${result.modelVersion} · 신뢰도 ${ratioToPercent(result.confidence)}%`,
+    `모델: ${result.modelVersion} · 신뢰도 ${ratioToPercent(result.confidence)}%`,
     "본 결과는 참고용 콘텐츠입니다.",
   ].join("\n");
 }
@@ -867,24 +883,24 @@ function createEmailHtml(job, result, name) {
             const risk = ratioToPercent(row.breakupRisk);
             return `
               <tr>
-                <td style="padding:12px 10px;border-top:1px solid #f0f2f5;font-size:13px;color:#344054;font-weight:600;">${escapeHtml(row.year)}년</td>
-                <td style="padding:12px 10px;border-top:1px solid #f0f2f5;font-size:13px;color:#027a48;font-weight:700;">
+                <td style="padding:12px 10px;border-top:1px solid #d9ccb4;font-size:13px;color:#4b3a27;font-weight:700;">${escapeHtml(row.year)}년</td>
+                <td style="padding:12px 10px;border-top:1px solid #d9ccb4;font-size:13px;color:#8b2e1f;font-weight:700;">
                   ${love}%
-                  <div style="margin-top:6px;height:6px;background:#e8f7ef;border-radius:999px;overflow:hidden;">
-                    <div style="width:${love}%;height:100%;background:#12b76a;"></div>
+                  <div style="margin-top:6px;height:6px;background:#f1e4cf;border-radius:999px;overflow:hidden;">
+                    <div style="width:${love}%;height:100%;background:#8b2e1f;"></div>
                   </div>
                 </td>
-                <td style="padding:12px 10px;border-top:1px solid #f0f2f5;font-size:13px;color:#b54708;font-weight:700;">
+                <td style="padding:12px 10px;border-top:1px solid #d9ccb4;font-size:13px;color:#6e4c28;font-weight:700;">
                   ${risk}%
-                  <div style="margin-top:6px;height:6px;background:#fff1e6;border-radius:999px;overflow:hidden;">
-                    <div style="width:${risk}%;height:100%;background:#f79009;"></div>
+                  <div style="margin-top:6px;height:6px;background:#f1e4cf;border-radius:999px;overflow:hidden;">
+                    <div style="width:${risk}%;height:100%;background:#6e4c28;"></div>
                   </div>
                 </td>
               </tr>
             `;
           })
           .join("")
-      : `<tr><td colspan="3" style="padding:14px 10px;color:#667085;font-size:13px;border-top:1px solid #f0f2f5;">핵심 연도 데이터가 없습니다.</td></tr>`;
+      : `<tr><td colspan="3" style="padding:14px 10px;color:#5a4631;font-size:13px;border-top:1px solid #d9ccb4;">핵심 연도 데이터가 없습니다.</td></tr>`;
 
   const yearlyRows =
     yearlyGuidance.length > 0
@@ -892,9 +908,9 @@ function createEmailHtml(job, result, name) {
           .map(
             (row) => `
               <tr>
-                <td style="padding:14px 0;border-top:1px solid #f0f2f5;">
-                  <div style="font-size:13px;color:#101828;font-weight:700;margin-bottom:6px;">${escapeHtml(row.year)}년 · 연애 ${ratioToPercent(row.loveChance)}% · 리스크 ${ratioToPercent(row.breakupRisk)}%</div>
-                  <div style="font-size:14px;color:#344054;line-height:1.6;">${nlToBr(row.focus)}</div>
+                <td style="padding:14px 0;border-top:1px solid #d9ccb4;">
+                  <div style="font-size:13px;color:#4b3a27;font-weight:700;margin-bottom:6px;">${escapeHtml(row.year)}년 · 연애 ${ratioToPercent(row.loveChance)}% · 리스크 ${ratioToPercent(row.breakupRisk)}%</div>
+                  <div style="font-size:14px;color:#4b3a27;line-height:1.6;">${nlToBr(row.focus)}</div>
                 </td>
               </tr>
             `,
@@ -908,9 +924,9 @@ function createEmailHtml(job, result, name) {
           .map(
             (section) => `
               <tr>
-                <td style="padding:16px;border:1px solid #eaecf0;border-radius:${CARD_RADIUS};background:#ffffff;">
-                  <div style="font-size:15px;font-weight:800;color:#101828;margin-bottom:10px;">${escapeHtml(section.title)}</div>
-                  <div style="font-size:14px;line-height:1.7;color:#344054;">${nlToBr(section.body)}</div>
+                <td style="padding:16px;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};background:#fffaf1;">
+                  <div style="font-size:15px;font-weight:800;color:#3f3020;margin-bottom:10px;">${escapeHtml(section.title)}</div>
+                  <div style="font-size:14px;line-height:1.7;color:#4b3a27;">${nlToBr(section.body)}</div>
                 </td>
               </tr>
               <tr><td style="height:12px;"></td></tr>
@@ -921,18 +937,18 @@ function createEmailHtml(job, result, name) {
 
   const evidenceHtml =
     evidenceCodes.length > 0
-      ? `<div style="font-size:12px;color:#667085;margin-top:8px;">근거 코드: ${escapeHtml(evidenceCodes.join(", "))}</div>`
+      ? `<div style="font-size:12px;color:#5a4631;margin-top:8px;">근거 코드: ${escapeHtml(evidenceCodes.join(", "))}</div>`
       : "";
 
   return `
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f4f6f8;padding:0;margin:0;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#efe5cf;padding:0;margin:0;">
   <tr>
     <td align="center" style="padding:22px 12px;">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:700px;border-collapse:collapse;background:#ffffff;border:1px solid #e4e7ec;border-radius:16px;overflow:hidden;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:700px;border-collapse:collapse;background:#fbf5e8;border:2px solid #7a5a34;border-radius:6px;overflow:hidden;">
         <tr>
-          <td style="padding:22px;background:linear-gradient(135deg,#ff6f0f 0%,#ff9b56 100%);color:#ffffff;">
-            <div style="font-size:13px;opacity:0.94;">AI 사주 연애 리포트</div>
-            <div style="font-size:24px;font-weight:800;line-height:1.3;margin-top:6px;">${escapeHtml(name)}님의 연애운 결과</div>
+          <td style="padding:20px 22px;background:#4f2f1f;color:#f3dfbf;border-bottom:2px solid #7a5a34;">
+            <div style="font-size:12px;letter-spacing:1px;">고전 사주 연애첩</div>
+            <div style="font-size:24px;font-weight:800;line-height:1.3;margin-top:6px;">${escapeHtml(name)}님의 연애운 풀이서</div>
             <div style="font-size:13px;opacity:0.95;margin-top:10px;">요청 ID: ${escapeHtml(job.id)}</div>
           </td>
         </tr>
@@ -940,25 +956,25 @@ function createEmailHtml(job, result, name) {
           <td style="padding:18px 18px 0;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
               <tr>
-                ${renderScoreCard("연애 점수", result?.loveScore, "#ff6f0f")}
-                ${renderScoreCard("결혼 안정성", result?.marriageScore, "#12b76a")}
-                ${renderScoreCard("갈등 리스크", result?.riskScore, "#f79009")}
+                ${renderScoreCard("연애 운세", result?.loveScore, "#8b2e1f")}
+                ${renderScoreCard("혼인 안정", result?.marriageScore, "#7a4e23")}
+                ${renderScoreCard("갈등 기운", result?.riskScore, "#5c4033")}
               </tr>
             </table>
           </td>
         </tr>
         <tr>
           <td style="padding:14px 22px 0;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fff8f2;border:1px solid #fed7aa;border-radius:${CARD_RADIUS};">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fffaf1;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};">
               <tr>
                 <td style="padding:16px;">
-                  <div style="font-size:15px;font-weight:800;color:#9a3412;margin-bottom:8px;">갈등 리스크란?</div>
-                  <div style="font-size:14px;color:#7c2d12;line-height:1.65;">연인 사이에서 오해·다툼·거리감이 커질 가능성을 뜻해요.</div>
-                  <div style="margin-top:10px;font-size:14px;color:#7c2d12;line-height:1.6;">
+                  <div style="font-size:15px;font-weight:800;color:#3f3020;margin-bottom:8px;">갈등 기운 풀이</div>
+                  <div style="font-size:14px;color:#4b3a27;line-height:1.65;">연인 사이에서 오해·다툼·거리감이 커질 가능성을 뜻합니다.</div>
+                  <div style="margin-top:10px;font-size:14px;color:#4b3a27;line-height:1.6;">
                     현재 점수 <b>${riskScore}%</b>는 <span style="display:inline-block;padding:2px 8px;border-radius:999px;background:${riskProfile.tone};color:#ffffff;font-size:12px;font-weight:700;">${riskProfile.level}</span> 구간입니다.
                   </div>
-                  <div style="margin-top:10px;font-size:13px;color:#93370d;line-height:1.6;">${escapeHtml(riskProfile.meaning)}</div>
-                  <div style="margin-top:6px;font-size:13px;color:#93370d;line-height:1.6;">주의: ${escapeHtml(riskProfile.caution)}</div>
+                  <div style="margin-top:10px;font-size:13px;color:#5a4631;line-height:1.6;">${escapeHtml(riskProfile.meaning)}</div>
+                  <div style="margin-top:6px;font-size:13px;color:#5a4631;line-height:1.6;">주의: ${escapeHtml(riskProfile.caution)}</div>
                 </td>
               </tr>
             </table>
@@ -966,11 +982,11 @@ function createEmailHtml(job, result, name) {
         </tr>
         <tr>
           <td style="padding:14px 22px 0;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#ffffff;border:1px solid #eaecf0;border-radius:${CARD_RADIUS};overflow:hidden;">
-              <tr style="background:#f9fafb;">
-                <th align="left" style="padding:12px 10px;font-size:12px;color:#475467;">리스크 범위</th>
-                <th align="left" style="padding:12px 10px;font-size:12px;color:#475467;">해석</th>
-                <th align="left" style="padding:12px 10px;font-size:12px;color:#475467;">주의 행동</th>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fffaf1;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};overflow:hidden;">
+              <tr style="background:#f3e8d4;">
+                <th align="left" style="padding:12px 10px;font-size:12px;color:#5a4631;">리스크 범위</th>
+                <th align="left" style="padding:12px 10px;font-size:12px;color:#5a4631;">해석</th>
+                <th align="left" style="padding:12px 10px;font-size:12px;color:#5a4631;">주의 행동</th>
               </tr>
               ${renderRiskBandRows(riskScore)}
             </table>
@@ -978,10 +994,10 @@ function createEmailHtml(job, result, name) {
         </tr>
         <tr>
           <td style="padding:14px 22px 0;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fff7ed;border:1px solid #fed7aa;border-radius:${CARD_RADIUS};">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fffaf1;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};">
               <tr><td style="padding:16px;">
-                <div style="font-size:15px;color:#9a3412;font-weight:800;margin-bottom:8px;">핵심 요약</div>
-                <div style="font-size:14px;color:#7c2d12;line-height:1.7;">${nlToBr(result?.summary)}</div>
+                <div style="font-size:15px;color:#3f3020;font-weight:800;margin-bottom:8px;">총평</div>
+                <div style="font-size:14px;color:#4b3a27;line-height:1.7;">${nlToBr(result?.summary)}</div>
               </td></tr>
             </table>
           </td>
@@ -991,18 +1007,18 @@ function createEmailHtml(job, result, name) {
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
               <tr>
                 <td width="50%" style="padding-right:7px;vertical-align:top;">
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#ecfdf3;border:1px solid #abefc6;border-radius:${CARD_RADIUS};">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fffaf1;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};">
                     <tr><td style="padding:16px;">
-                      <div style="font-size:15px;font-weight:800;color:#027a48;margin-bottom:8px;">좋은 흐름</div>
-                      <div style="font-size:14px;color:#05603a;line-height:1.65;">${nlToBr(result?.highlight)}</div>
+                      <div style="font-size:15px;font-weight:800;color:#5a3d24;margin-bottom:8px;">좋은 흐름</div>
+                      <div style="font-size:14px;color:#4b3a27;line-height:1.65;">${nlToBr(result?.highlight)}</div>
                     </td></tr>
                   </table>
                 </td>
                 <td width="50%" style="padding-left:7px;vertical-align:top;">
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fff7ed;border:1px solid #fedf89;border-radius:${CARD_RADIUS};">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fffaf1;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};">
                     <tr><td style="padding:16px;">
-                      <div style="font-size:15px;font-weight:800;color:#b54708;margin-bottom:8px;">주의 포인트</div>
-                      <div style="font-size:14px;color:#93370d;line-height:1.65;">${nlToBr(result?.caution)}</div>
+                      <div style="font-size:15px;font-weight:800;color:#5a3d24;margin-bottom:8px;">주의 포인트</div>
+                      <div style="font-size:14px;color:#4b3a27;line-height:1.65;">${nlToBr(result?.caution)}</div>
                     </td></tr>
                   </table>
                 </td>
@@ -1012,22 +1028,22 @@ function createEmailHtml(job, result, name) {
         </tr>
         <tr>
           <td style="padding:14px 22px 0;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f5f8ff;border:1px solid #d1e0ff;border-radius:${CARD_RADIUS};">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fffaf1;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};">
               <tr><td style="padding:16px;">
-                <div style="font-size:15px;font-weight:800;color:#1849a9;margin-bottom:8px;">타이밍 힌트</div>
-                <div style="font-size:14px;color:#1d2939;line-height:1.65;">${nlToBr(result?.timingHint)}</div>
+                <div style="font-size:15px;font-weight:800;color:#3f3020;margin-bottom:8px;">때를 보는 힌트</div>
+                <div style="font-size:14px;color:#4b3a27;line-height:1.65;">${nlToBr(result?.timingHint)}</div>
               </td></tr>
             </table>
           </td>
         </tr>
         <tr>
           <td style="padding:16px 22px 0;">
-            <div style="font-size:16px;color:#101828;font-weight:800;margin-bottom:8px;">핵심 연도</div>
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #eaecf0;border-radius:${CARD_RADIUS};overflow:hidden;">
-              <tr style="background:#f9fafb;">
-                <th align="left" style="padding:12px 10px;font-size:12px;color:#475467;">연도</th>
-                <th align="left" style="padding:12px 10px;font-size:12px;color:#475467;">연애 기회</th>
-                <th align="left" style="padding:12px 10px;font-size:12px;color:#475467;">갈등 리스크</th>
+            <div style="font-size:16px;color:#3f3020;font-weight:800;margin-bottom:8px;">핵심 연도</div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};overflow:hidden;background:#fffaf1;">
+              <tr style="background:#f3e8d4;">
+                <th align="left" style="padding:12px 10px;font-size:12px;color:#5a4631;">연도</th>
+                <th align="left" style="padding:12px 10px;font-size:12px;color:#5a4631;">연애 기회</th>
+                <th align="left" style="padding:12px 10px;font-size:12px;color:#5a4631;">갈등 리스크</th>
               </tr>
               ${topYearsRows}
             </table>
@@ -1035,15 +1051,15 @@ function createEmailHtml(job, result, name) {
         </tr>
         <tr>
           <td style="padding:16px 22px 0;">
-            <div style="font-size:16px;color:#101828;font-weight:800;margin-bottom:8px;">연도별 실행 가이드</div>
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#ffffff;border:1px solid #eaecf0;border-radius:${CARD_RADIUS};">
-              <tr><td style="padding:0 16px;">${yearlyRows || '<div style="padding:14px 0;font-size:13px;color:#667085;">연도별 가이드 데이터가 없습니다.</div>'}</td></tr>
+            <div style="font-size:16px;color:#3f3020;font-weight:800;margin-bottom:8px;">연도별 실행 가이드</div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fffaf1;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};">
+              <tr><td style="padding:0 16px;">${yearlyRows || '<div style="padding:14px 0;font-size:13px;color:#5a4631;">연도별 가이드 데이터가 없습니다.</div>'}</td></tr>
             </table>
           </td>
         </tr>
         <tr>
           <td style="padding:16px 22px 0;">
-            <div style="font-size:16px;color:#101828;font-weight:800;margin-bottom:8px;">상세 리포트</div>
+            <div style="font-size:16px;color:#3f3020;font-weight:800;margin-bottom:8px;">상세 풀이</div>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
               ${sectionBlocks}
             </table>
@@ -1051,13 +1067,13 @@ function createEmailHtml(job, result, name) {
         </tr>
         <tr>
           <td style="padding:8px 22px 22px;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f9fafb;border:1px solid #eaecf0;border-radius:${CARD_RADIUS};">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f6efe1;border:1px solid #d9ccb4;border-radius:${CARD_RADIUS};">
               <tr><td style="padding:14px 16px;">
-                <div style="font-size:12px;color:#475467;line-height:1.6;">
+                <div style="font-size:12px;color:#5a4631;line-height:1.6;">
                   모델: ${escapeHtml(result?.modelVersion)} · 신뢰도 ${ratioToPercent(result?.confidence)}%
                 </div>
                 ${evidenceHtml}
-                <div style="font-size:12px;color:#667085;line-height:1.6;margin-top:8px;">
+                <div style="font-size:12px;color:#5a4631;line-height:1.6;margin-top:8px;">
                   본 결과는 참고용 콘텐츠이며, 실제 관계의 핵심은 상호 존중과 대화입니다.
                 </div>
               </td></tr>
@@ -1110,7 +1126,7 @@ async function sendResultEmail(job, result) {
     body: JSON.stringify({
       from,
       to: [to],
-      subject: "[사주 결과] 요청하신 연애운 리포트",
+      subject: "[사주첩] 요청하신 연애운 풀이가 도착했습니다",
       text: createEmailText(job, result, name),
       html: createEmailHtml(job, result, name),
     }),
