@@ -1,10 +1,12 @@
 export type Gender = "male" | "female";
 export type CalendarType = "solar" | "lunar";
+export type RelationshipStatus = "single" | "in_relationship";
 
 export type BirthInput = {
   birthDate: string;
   birthTime?: string;
   gender: Gender;
+  relationshipStatus?: RelationshipStatus;
   calendarType: CalendarType;
   birthPlace?: string;
 };
@@ -105,6 +107,46 @@ export type YearLoveLuck = {
   notes: string[];
 };
 
+type BranchRelation = "합" | "충" | "형" | "해" | "파" | "중립";
+
+type SpouseRelationInfo = {
+  target: "년지" | "월지" | "시지";
+  relation: BranchRelation;
+  branch: EarthlyBranch;
+};
+
+export type LoveDiagnostics = {
+  relationshipStatus: RelationshipStatus;
+  pillars: {
+    year: string;
+    month: string;
+    day: string;
+    hour: string;
+  };
+  dayMaster: {
+    stem: HeavenlyStem;
+    branch: EarthlyBranch;
+    strength: number;
+  };
+  spousePalace: {
+    branch: EarthlyBranch;
+    stability: number;
+    conflictRisk: number;
+    relations: SpouseRelationInfo[];
+  };
+  spouseStar: {
+    presence: number;
+    balance: number;
+    conflictRisk: number;
+  };
+  romanceStars: {
+    peachInner: number;
+    peachOuter: number;
+    hongLuanCount: number;
+    hongYanCount: number;
+  };
+};
+
 export type LoveAnalysis = {
   chart: Chart;
   loveScore: number;
@@ -121,12 +163,13 @@ export type LoveAnalysis = {
   timeline: YearLoveLuck[];
   dayMasterStrength: number;
   elementProfile: ElementProfile;
+  diagnostics: LoveDiagnostics;
   evidenceCodes: string[];
   traces: string[];
   modelVersion: string;
 };
 
-const MODEL_VERSION = "love-engine-v2.2";
+const MODEL_VERSION = "love-engine-v2.4";
 
 const STEM_ELEMENT: Record<HeavenlyStem, Element> = {
   JIA: "wood",
@@ -154,6 +197,19 @@ const STEM_YY: Record<HeavenlyStem, YinYang> = {
   GUI: "yin",
 };
 
+const STEM_KOREAN: Record<HeavenlyStem, string> = {
+  JIA: "갑",
+  YI: "을",
+  BING: "병",
+  DING: "정",
+  WU: "무",
+  JI: "기",
+  GENG: "경",
+  XIN: "신",
+  REN: "임",
+  GUI: "계",
+};
+
 const BRANCH_ELEMENT: Record<EarthlyBranch, Element> = {
   ZI: "water",
   CHOU: "earth",
@@ -167,6 +223,21 @@ const BRANCH_ELEMENT: Record<EarthlyBranch, Element> = {
   YOU: "metal",
   XU: "earth",
   HAI: "water",
+};
+
+const BRANCH_KOREAN: Record<EarthlyBranch, string> = {
+  ZI: "자",
+  CHOU: "축",
+  YIN: "인",
+  MAO: "묘",
+  CHEN: "진",
+  SI: "사",
+  WU: "오",
+  WEI: "미",
+  SHEN: "신",
+  YOU: "유",
+  XU: "술",
+  HAI: "해",
 };
 
 const HIDDEN_STEMS: Record<EarthlyBranch, HeavenlyStem[]> = {
@@ -356,7 +427,7 @@ function pairKey(a: EarthlyBranch, b: EarthlyBranch) {
   return a < b ? `${a}-${b}` : `${b}-${a}`;
 }
 
-function getBranchRelation(a: EarthlyBranch, b: EarthlyBranch): "합" | "충" | "형" | "해" | "파" | "중립" {
+function getBranchRelation(a: EarthlyBranch, b: EarthlyBranch): BranchRelation {
   const key = pairKey(a, b);
   if (HARMONY_PAIRS.has(key)) return "합";
   if (CLASH_PAIRS.has(key)) return "충";
@@ -364,6 +435,20 @@ function getBranchRelation(a: EarthlyBranch, b: EarthlyBranch): "합" | "충" | 
   if (HARM_PAIRS.has(key)) return "해";
   if (BREAK_PAIRS.has(key)) return "파";
   return "중립";
+}
+
+function toKoreanPillar(pillar: Pillar) {
+  return `${STEM_KOREAN[pillar.stem]}${BRANCH_KOREAN[pillar.branch]}`;
+}
+
+function getSpouseRelationInfo(chart: Chart): SpouseRelationInfo[] {
+  const spouseBranch = chart.day.branch;
+
+  return [
+    { target: "년지", relation: getBranchRelation(spouseBranch, chart.year.branch), branch: chart.year.branch },
+    { target: "월지", relation: getBranchRelation(spouseBranch, chart.month.branch), branch: chart.month.branch },
+    { target: "시지", relation: getBranchRelation(spouseBranch, chart.hour.branch), branch: chart.hour.branch },
+  ];
 }
 
 function tenGod(dayStem: HeavenlyStem, targetStem: HeavenlyStem): TenGod {
@@ -768,7 +853,37 @@ function pickTopYears(timeline: YearLoveLuck[]) {
     .sort((a, b) => a.year - b.year);
 }
 
+function relationKoreanLabel(info: SpouseRelationInfo) {
+  return `${info.target} ${BRANCH_KOREAN[info.branch]}(${info.relation})`;
+}
+
+function timingPhraseFromNote(note: string | undefined, hasPartner: boolean) {
+  if (!note) {
+    return hasPartner ? "현재 관계를 한 단계 더 정리할 동력" : "새 인연 유입과 관계 전환의 흐름";
+  }
+
+  if (note.includes("배우자궁 합")) {
+    return hasPartner ? "관계 공식화·약속 구체화 신호" : "관계 성사·공식화 신호";
+  }
+  if (note.includes("배우자별 세운")) {
+    return hasPartner ? "관계 진전 신호" : "인연 유입 신호";
+  }
+  if (note.includes("도화 세운")) {
+    return hasPartner ? "감정 교류가 활발해지는 신호" : "매력 노출과 만남 확장 신호";
+  }
+  if (note.includes("배우자궁 충") || note.includes("배우자궁 형")) {
+    return hasPartner ? "갈등 조율과 규칙 정비가 필요한 신호" : "관계 속도 조절이 필요한 신호";
+  }
+  if (note.includes("홍염 활성")) {
+    return hasPartner ? "감정 기복 관리가 필요한 신호" : "감정 과열을 조심해야 하는 신호";
+  }
+  return hasPartner ? "관계 구조 조정 신호" : "관계 전환 신호";
+}
+
 export function analyzeLoveFortune(input: BirthInput): LoveAnalysis {
+  const relationshipStatus: RelationshipStatus =
+    input.relationshipStatus === "in_relationship" ? "in_relationship" : "single";
+  const hasPartner = relationshipStatus === "in_relationship";
   const chart = buildApproxChart(input);
   const elementProfile = calcElementProfile(chart);
   const dayMasterStrength = calcDayMasterStrength(chart, elementProfile);
@@ -776,6 +891,13 @@ export function analyzeLoveFortune(input: BirthInput): LoveAnalysis {
   const spousePalace = scoreSpousePalace(chart, dayMasterStrength);
   const spouseStar = scoreSpouseStar(chart, input.gender, dayMasterStrength);
   const stars = calcRomanceStars(chart);
+  const spouseRelations = getSpouseRelationInfo(chart);
+  const spouseHarmonyCount = spouseRelations.filter((row) => row.relation === "합").length;
+  const spouseClashCount = spouseRelations.filter((row) => row.relation === "충").length;
+  const spouseHarshCount = spouseRelations.filter(
+    (row) => row.relation === "형" || row.relation === "해" || row.relation === "파",
+  ).length;
+  const spouseConflictCount = spouseClashCount + spouseHarshCount;
 
   const pbInnerNorm = Math.min(stars.peachBlossom.inner, 2) / 2;
   const pbOuterNorm = Math.min(stars.peachBlossom.outer, 2) / 2;
@@ -804,27 +926,39 @@ export function analyzeLoveFortune(input: BirthInput): LoveAnalysis {
     0.5 * spousePalace.stability + 0.4 * spouseStar.balance + 0.1 * dayMasterStrength,
   );
 
+  const relationLoveAdjust = spouseHarmonyCount * 0.04 - spouseConflictCount * 0.035;
+  const relationMarriageAdjust = spouseHarmonyCount * 0.03 - spouseConflictCount * 0.02;
+  const relationRiskAdjust = spouseClashCount * 0.08 + spouseHarshCount * 0.04 - spouseHarmonyCount * 0.03;
+
   const lovePotentialSpread = amplify01(
-    overallPotential + 0.08 * (spousePalace.stability - spousePalace.conflictRisk) + 0.05 * (spouseStar.presence - 0.3),
+    overallPotential +
+      0.08 * (spousePalace.stability - spousePalace.conflictRisk) +
+      0.05 * (spouseStar.presence - 0.3) +
+      relationLoveAdjust +
+      (hasPartner ? 0.02 * spousePalace.stability : 0),
     0.33,
-    1.45,
+    1.52,
   );
 
   const marriagePotentialSpread = amplify01(
-    marriagePotential + 0.06 * spouseStar.presence - 0.04 * spousePalace.conflictRisk,
+    marriagePotential + 0.06 * spouseStar.presence - 0.04 * spousePalace.conflictRisk + relationMarriageAdjust,
     0.43,
-    1.4,
-  );
-
-  const riskPotentialSpread = amplify01(
-    instabilityRisk + 0.06 * (1 - spousePalace.stability) + 0.04 * (stars.hongYanCount > 0 ? 1 : 0),
-    0.4,
     1.45,
   );
 
-  const loveScore = Math.round(38 + lovePotentialSpread * 60);
-  const marriageScore = Math.round(35 + marriagePotentialSpread * 62);
-  const riskScore = Math.round(8 + riskPotentialSpread * 92);
+  const riskPotentialSpread = amplify01(
+    instabilityRisk +
+      0.06 * (1 - spousePalace.stability) +
+      0.04 * (stars.hongYanCount > 0 ? 1 : 0) +
+      relationRiskAdjust +
+      (stars.hongYanCount >= 2 ? 0.05 : 0),
+    0.4,
+    1.52,
+  );
+
+  const loveScore = Math.round(34 + lovePotentialSpread * 64);
+  const marriageScore = Math.round(32 + marriagePotentialSpread * 66);
+  const riskScore = Math.round(6 + riskPotentialSpread * 94);
 
   const confidence = buildConfidence(input);
   const timeline = calcYearLoveLuck(
@@ -837,13 +971,21 @@ export function analyzeLoveFortune(input: BirthInput): LoveAnalysis {
   const topYears = pickTopYears(timeline);
   const bestYear = topYears[0]?.year ?? new Date().getFullYear();
 
-  let summary = "연애운이 안정적으로 흐릅니다. 속도보다 관계 구조를 단단히 잡는 방식이 유리해요.";
+  let summary = hasPartner
+    ? "현재 관계를 안정적으로 키울 수 있는 흐름입니다. 대화 리듬과 기대치 조율이 성과를 만듭니다."
+    : "연애운이 안정적으로 흐릅니다. 속도보다 관계 구조를 단단히 잡는 방식이 유리해요.";
   if (loveScore >= 85 && riskScore < 40) {
-    summary = "인연 유입과 관계 진전 흐름이 강합니다. 결혼 전환까지 노려볼 수 있는 국면입니다.";
+    summary = hasPartner
+      ? "현재 관계의 결속이 강해지는 구간입니다. 약속·공식화 같은 다음 단계를 논의하기 좋습니다."
+      : "인연 유입과 관계 진전 흐름이 강합니다. 결혼 전환까지 노려볼 수 있는 국면입니다.";
   } else if (loveScore >= 73 && riskScore >= 62) {
-    summary = "만남은 강하지만 감정 진폭도 큽니다. 기준/경계를 먼저 맞추면 성과가 큽니다.";
+    summary = hasPartner
+      ? "애정 흐름은 있지만 감정 진폭도 큰 시기입니다. 서운함을 빠르게 조율하면 안정됩니다."
+      : "만남은 강하지만 감정 진폭도 큽니다. 기준/경계를 먼저 맞추면 성과가 큽니다.";
   } else if (loveScore < 58) {
-    summary = "단기 스파크보다 신뢰 누적형 연애가 더 잘 맞습니다. 관계의 속도 조절이 핵심입니다.";
+    summary = hasPartner
+      ? "관계 속도를 조금 늦추고 생활 리듬을 맞추는 것이 우선입니다. 작은 신뢰를 다시 쌓아가세요."
+      : "단기 스파크보다 신뢰 누적형 연애가 더 잘 맞습니다. 관계의 속도 조절이 핵심입니다.";
   }
 
   const highlights: string[] = [];
@@ -851,57 +993,155 @@ export function analyzeLoveFortune(input: BirthInput): LoveAnalysis {
   const evidenceCodes: string[] = [];
 
   if (spousePalace.stability > 0.72) {
-    highlights.push("배우자궁 안정 신호가 강해 장기 관계 유지력에 강점이 있습니다.");
+    highlights.push(
+      hasPartner
+        ? "배우자궁 안정 신호가 강해 현재 관계를 길게 끌고 갈 기반이 좋습니다."
+        : "배우자궁 안정 신호가 강해 장기 관계 유지력에 강점이 있습니다.",
+    );
     evidenceCodes.push("R_SP_STABLE_HIGH");
   }
   if (spouseStar.presence > 0.66) {
-    highlights.push("배우자별 활성도가 높아 인연 성사 확률이 높습니다.");
+    highlights.push(
+      hasPartner
+        ? "배우자별 활성도가 높아 현재 관계를 진지하게 발전시킬 동력이 강합니다."
+        : "배우자별 활성도가 높아 인연 성사 확률이 높습니다.",
+    );
     evidenceCodes.push("R_SSTAR_PRESENT");
   }
   if (stars.hongLuanCount > 0) {
-    highlights.push("홍란 신호가 있어 진지한 관계 이벤트(공식화/약속) 가능성이 있습니다.");
+    highlights.push(
+      hasPartner
+        ? "홍란 신호가 있어 관계를 공식화하거나 약속을 구체화할 계기가 생기기 쉽습니다."
+        : "홍란 신호가 있어 진지한 관계 이벤트(공식화/약속) 가능성이 있습니다.",
+    );
     evidenceCodes.push("R_HONGLUAN_ACTIVE");
   }
   if (elementProfile.balanceScore > 0.66) {
     highlights.push("오행 밸런스가 고르게 분포해 관계 안정성에 유리합니다.");
     evidenceCodes.push("R_ELEM_BALANCED");
   }
+  if (spouseHarmonyCount > 0) {
+    const harmonyLabel = spouseRelations
+      .filter((row) => row.relation === "합")
+      .map((row) => relationKoreanLabel(row))
+      .join(", ");
+    highlights.push(
+      hasPartner
+        ? `원국에서 배우자궁이 ${harmonyLabel} 구조를 만들어, 현재 관계를 안정적으로 이어갈 기반이 분명합니다.`
+        : `원국에서 배우자궁이 ${harmonyLabel} 구조를 만들어, 인연 성사 후 관계 유지력이 좋은 편입니다.`,
+    );
+    evidenceCodes.push("R_NATAL_SP_HARMONY");
+  }
 
   if (stars.peachBlossom.outer > 0) {
-    cautions.push("외도화 신호가 있어 관계 초반의 경계선/기대치 합의가 중요합니다.");
+    cautions.push(
+      hasPartner
+        ? "외도화 신호가 있어 외부 관심 변수에 흔들리지 않도록 경계선과 우선순위를 분명히 하세요."
+        : "외도화 신호가 있어 관계 초반의 경계선/기대치 합의가 중요합니다.",
+    );
     evidenceCodes.push("R_PEACH_OUTER");
   }
   if (stars.hongYanCount > 0) {
-    cautions.push("홍염 신호가 있어 감정 기복이 커질 수 있으니 템포 조절이 필요합니다.");
+    cautions.push(
+      hasPartner
+        ? "홍염 신호가 있어 감정 기복이 커질 수 있으니 말투와 반응 속도를 한 톤 낮춰 보세요."
+        : "홍염 신호가 있어 감정 기복이 커질 수 있으니 템포 조절이 필요합니다.",
+    );
     evidenceCodes.push("R_HONGYAN_ACTIVE");
   }
   if (spousePalace.conflictRisk > 0.65) {
-    cautions.push("배우자궁 충돌 신호가 있어 갈등 시 즉시 결론보다 냉각 시간이 유리합니다.");
+    cautions.push(
+      hasPartner
+        ? "배우자궁 충돌 신호가 있어 갈등 시 즉시 결론보다 잠시 식힌 뒤 합의하는 방식이 유리합니다."
+        : "배우자궁 충돌 신호가 있어 갈등 시 즉시 결론보다 냉각 시간이 유리합니다.",
+    );
     evidenceCodes.push("R_SP_CONFLICT_HIGH");
   }
   if (spouseStar.conflictRisk > 0.56) {
-    cautions.push("배우자별 혼잡도가 있어 삼각 구도/연락 템포 이슈를 주의하세요.");
+    cautions.push(
+      hasPartner
+        ? "배우자별 혼잡도가 있어 기대치·연락 템포 불일치가 커질 수 있으니 규칙을 먼저 맞추세요."
+        : "배우자별 혼잡도가 있어 삼각 구도/연락 템포 이슈를 주의하세요.",
+    );
     evidenceCodes.push("R_SSTAR_CONGESTED");
+  }
+  if (spouseConflictCount > 0) {
+    const conflictLabel = spouseRelations
+      .filter((row) => row.relation === "충" || row.relation === "형" || row.relation === "해" || row.relation === "파")
+      .map((row) => relationKoreanLabel(row))
+      .join(", ");
+    cautions.push(
+      hasPartner
+        ? `원국에서 배우자궁과 ${conflictLabel} 구조가 보여, 감정이 오른 날에는 결론을 늦추고 주제별로 대화를 나누는 방식이 필요합니다.`
+        : `원국에서 배우자궁과 ${conflictLabel} 구조가 보여, 관계 초반 속도·기대치를 먼저 합의하는 편이 안전합니다.`,
+    );
+    evidenceCodes.push("R_NATAL_SP_CONFLICT");
   }
 
   if (highlights.length === 0) {
-    highlights.push("관계 진행 속도를 조금만 늦추면 안정적인 성과를 만들 수 있습니다.");
+    highlights.push(
+      hasPartner
+        ? "작은 약속을 꾸준히 지키면 현재 관계의 안정감이 빠르게 회복됩니다."
+        : "관계 진행 속도를 조금만 늦추면 안정적인 성과를 만들 수 있습니다.",
+    );
     evidenceCodes.push("R_GENERAL_STABLE");
   }
 
   if (cautions.length === 0) {
-    cautions.push("감정이 큰 날에는 일정·연락 규칙을 분명히 하는 것이 리스크를 줄입니다.");
+    cautions.push(
+      hasPartner
+        ? "중요한 이슈는 미루지 말고 같은 날 짧게라도 대화를 마무리하는 습관이 리스크를 줄입니다."
+        : "감정이 큰 날에는 일정·연락 규칙을 분명히 하는 것이 리스크를 줄입니다.",
+    );
     evidenceCodes.push("R_GENERAL_BOUNDARY");
   }
 
-  const timingHint = `${bestYear}년에 연애/관계 전환 지표가 상대적으로 가장 좋게 나타납니다.`;
+  const bestYearPrimaryNote = topYears[0]?.notes?.[0];
+  const bestYearSignal = timingPhraseFromNote(bestYearPrimaryNote, hasPartner);
+  const timingHint = hasPartner
+    ? `${bestYear}년에 ${bestYearSignal}가 들어옵니다. 관계 운영 규칙을 먼저 맞추면 성과가 커집니다.`
+    : `${bestYear}년에 ${bestYearSignal}가 강하게 들어옵니다. 만남과 관계 전환을 적극적으로 열어보세요.`;
+
+  const diagnostics: LoveDiagnostics = {
+    relationshipStatus,
+    pillars: {
+      year: toKoreanPillar(chart.year),
+      month: toKoreanPillar(chart.month),
+      day: toKoreanPillar(chart.day),
+      hour: toKoreanPillar(chart.hour),
+    },
+    dayMaster: {
+      stem: chart.day.stem,
+      branch: chart.day.branch,
+      strength: dayMasterStrength,
+    },
+    spousePalace: {
+      branch: chart.day.branch,
+      stability: spousePalace.stability,
+      conflictRisk: spousePalace.conflictRisk,
+      relations: spouseRelations,
+    },
+    spouseStar: {
+      presence: spouseStar.presence,
+      balance: spouseStar.balance,
+      conflictRisk: spouseStar.conflictRisk,
+    },
+    romanceStars: {
+      peachInner: stars.peachBlossom.inner,
+      peachOuter: stars.peachBlossom.outer,
+      hongLuanCount: stars.hongLuanCount,
+      hongYanCount: stars.hongYanCount,
+    },
+  };
 
   const traces = [
     `dayMaster=${dayMasterStrength.toFixed(2)}, elementBalance=${elementProfile.balanceScore.toFixed(2)}`,
     `spousePalace(stability=${spousePalace.stability.toFixed(2)}, risk=${spousePalace.conflictRisk.toFixed(2)})`,
     `spouseStar(presence=${spouseStar.presence.toFixed(2)}, balance=${spouseStar.balance.toFixed(2)})`,
+    `spouseRelations(harmony=${spouseHarmonyCount}, clash=${spouseClashCount}, harsh=${spouseHarshCount})`,
     `stars(pbInner=${stars.peachBlossom.inner}, pbOuter=${stars.peachBlossom.outer}, hongLuan=${stars.hongLuanCount}, hongYan=${stars.hongYanCount})`,
     `potential(raw=${overallPotential.toFixed(2)}, spread=${lovePotentialSpread.toFixed(2)}), risk(raw=${instabilityRisk.toFixed(2)}, spread=${riskPotentialSpread.toFixed(2)})`,
+    `context(relationshipStatus=${relationshipStatus})`,
     `confidence=${confidence.toFixed(2)}, model=${MODEL_VERSION}`,
   ];
 
@@ -921,6 +1161,7 @@ export function analyzeLoveFortune(input: BirthInput): LoveAnalysis {
     timeline,
     dayMasterStrength,
     elementProfile,
+    diagnostics,
     evidenceCodes,
     traces,
     modelVersion: MODEL_VERSION,

@@ -23,6 +23,7 @@ const DEFAULT_INPUT: SajuInput = {
   name: "",
   email: "",
   gender: "female",
+  relationshipStatus: "single",
   calendarType: "solar",
   birthDate: "",
   birthTime: "",
@@ -326,6 +327,19 @@ export default function LoveFortuneApp() {
                   placeholder="you@example.com"
                 />
               </TextField.Root>
+
+              <label className="mb-2 mt-4 block text-[13px] font-bold text-seed-fg-primary">현재 연애 상태</label>
+              <select
+                className="h-11 w-full rounded-2xl border border-seed-stroke-subtle bg-seed-bg-default px-3 text-[14px] text-seed-fg-primary"
+                value={form.relationshipStatus}
+                onChange={(e) => updateField("relationshipStatus", e.target.value as SajuInput["relationshipStatus"])}
+              >
+                <option value="single">없어요</option>
+                <option value="in_relationship">있어요</option>
+              </select>
+              <p className="mt-2 text-[12px] leading-[1.45] text-seed-fg-subtle">
+                현재 연애 중이라면 기존 관계 중심으로, 아니라면 인연 유입 중심으로 리포트를 안내해드려요.
+              </p>
 
               <div className="mt-4 rounded-2xl border border-seed-stroke-subtle bg-seed-bg-fill p-3">
                 <p className="text-[12px] font-semibold text-seed-fg-primary">출생 정보</p>

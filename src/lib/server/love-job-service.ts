@@ -17,6 +17,7 @@ function defaultInput(input: LoveJobInput): LoveJobInput {
     ...input,
     name: input.name?.trim() ?? "",
     email: input.email?.trim().toLowerCase() ?? "",
+    relationshipStatus: input.relationshipStatus === "in_relationship" ? "in_relationship" : "single",
     birthPlace: input.birthPlace?.trim() || "대한민국",
     birthTime: input.birthTime?.trim() || "",
   };
@@ -50,6 +51,10 @@ export function validateLoveInput(input: LoveJobInput) {
 
   if (input.gender !== "female" && input.gender !== "male") {
     throw new Error("gender_invalid");
+  }
+
+  if (input.relationshipStatus !== "single" && input.relationshipStatus !== "in_relationship") {
+    throw new Error("relationship_status_invalid");
   }
 
   if (input.calendarType !== "solar" && input.calendarType !== "lunar") {

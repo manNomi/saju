@@ -1,7 +1,10 @@
+export type RelationshipStatus = "single" | "in_relationship";
+
 export type LoveJobInput = {
   name: string;
   email: string;
   gender: "male" | "female";
+  relationshipStatus: RelationshipStatus;
   calendarType: "solar" | "lunar";
   birthDate: string;
   birthTime: string;
